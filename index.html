@@ -3,9 +3,9 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>رحلة المعرفة - عالم تعليمي تفاعلي</title>
+  <title>عالم نافس - عالم تعليمي تفاعلي</title>
   <script src="https://cdn.tailwindcss.com"></script>
-  <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700&family=Tajawal:wght@400;500;700&display=swap" rel="stylesheet">
   <script src="https://unpkg.com/@supabase/supabase-js@2"></script>
   <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.6.0/dist/confetti.browser.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
@@ -117,10 +117,20 @@
       border-radius: 10px;
       background: #fafafa;
       min-height: 80px;
-      font-size: 22px;
+      font-size: 18px;
+      font-family: 'Tajawal', sans-serif;
       text-align: right;
       direction: rtl;
       color: #333;
+      unicode-bidi: isolate; /* عزل اتجاه النص */
+    }
+
+    /* عكس اتجاه الجذر التربيعي ليناسب العربية */
+    mjx-sqrt {
+      transform: scaleX(-1);
+    }
+    mjx-sqrt mjx-box {
+      transform: scaleX(-1);
     }
     
     .video-wrapper {
@@ -331,6 +341,9 @@
   <audio id="wrong-sound" preload="auto">
     <source src="data:audio/mp3;base64,//NExAAAAANIAAAAAExBTUUzLjEwMKqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqq" type="audio/mpeg">
   </audio>
+  <audio id="click-sound" preload="auto">
+    <source src="data:audio/mp3;base64,//NExAAAAANIAAAAAExBTUUzLjEwMKqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqq" type="audio/mpeg">
+  </audio>
 
   <script>
     window.onerror = function(msg, url, line, col, error) {
@@ -346,10 +359,10 @@
       secondary_action_color: "#8b5cf6",
       font_family: "Cairo",
       font_size: 16,
-      game_title: "رحلة المعرفة",
+      game_title: "عالم نافس ",
       game_subtitle: "استكشف عالم التعلم المثير",
       guide_name: "نور",
-      welcome_message: "مرحباً بك يا مستكشف المعرفة!"
+      welcome_message: "مرحباً بك يا مستكشف نافس!"
     };
 
     function processYouTubeUrl(url) {
@@ -1114,10 +1127,24 @@
       // استعادة إعدادات الصوت
       isMuted = localStorage.getItem('rhlat_isMuted') === 'true';
       
+      // استعادة إعدادات المظهر
+      const savedFont = localStorage.getItem('rhlat_font_family');
+      const savedSize = localStorage.getItem('rhlat_font_size');
+      const savedBg = localStorage.getItem('rhlat_background_color');
+      const savedCard = localStorage.getItem('rhlat_card_surface_color');
+      const savedText = localStorage.getItem('rhlat_text_color');
+
       window.elementSdk = {
         init: () => Promise.resolve({}),
         setConfig: () => {},
-        config: defaultConfig,
+        config: { 
+          ...defaultConfig, 
+          font_family: savedFont || defaultConfig.font_family, 
+          font_size: savedSize ? parseInt(savedSize) : defaultConfig.font_size,
+          background_color: savedBg || defaultConfig.background_color,
+          card_surface_color: savedCard || defaultConfig.card_surface_color,
+          text_color: savedText || defaultConfig.text_color
+        },
         onConfigChange: () => {}
       };
       
@@ -1169,6 +1196,27 @@
       document.body.style.color = textColor;
       document.body.style.fontFamily = `${customFont}, Segoe UI, Roboto, sans-serif`;
       document.body.style.fontSize = `${baseFontSize}px`;
+    }
+
+    // Helper to check if content exists
+    function checkContentAvailability(type, id, grade) {
+      if (type === 'city') {
+        const cityId = id;
+        const subjectName = cityId.replace('_test', '');
+        
+        // Check static skills
+        const hasStatic = skills[cityId]?.[grade]?.length > 0;
+        
+        // Check dynamic castles
+        const hasDynamic = learningCastles.some(c => c.subject === subjectName && c.grade === grade);
+        
+        return hasStatic || hasDynamic;
+      } else if (type === 'semester') {
+        const semesterId = id;
+        const cities = islands[semesterId]?.cities || [];
+        return cities.some(city => checkContentAvailability('city', city.id, grade));
+      }
+      return false;
     }
 
     function renderCurrentScreen() {
@@ -1400,7 +1448,7 @@
                   </button>
                 </div>
 
-                <button onclick="backToSemester()"
+                <button onclick="window.backToSemester()"
                   style="background-color: ${bgColor}; color: ${textColor}; font-size: ${baseFontSize}px;"
                   class="w-full py-3 rounded-lg font-semibold hover:opacity-80 transition-all">
                   ⬅️ العودة لعالم نافس
@@ -1413,6 +1461,11 @@
       
       // 4. شاشة اختيار الفصل الدراسي
       else if (currentScreen === 'semester') {
+        const selectedGrade = gameState.selectedGrade || 'grade3';
+        const isSem1Active = checkContentAvailability('semester', 'semester1', selectedGrade);
+        const isSem2Active = checkContentAvailability('semester', 'semester2', selectedGrade);
+        const isSem3Active = checkContentAvailability('semester', 'semester3', selectedGrade);
+
         content = `
           <div class="flex items-center justify-center min-h-full p-4" style="background-color: ${bgColor};">
             <div class="w-full max-w-2xl">
@@ -1436,12 +1489,34 @@
                 </div>
                 
                 <div class="grid grid-cols-1 gap-4 mb-6">
-                  <button onclick="selectSemesterAndContinue('semester3')"
-                    style="background-color: ${bgColor}; color: ${textColor}; font-size: ${baseFontSize * 1.25}px;"
-                    class="py-6 rounded-xl font-bold hover:opacity-80 transition-all border-4 border-transparent hover:border-opacity-50">
+                  <button onclick="${isSem1Active ? "selectSemesterAndContinue('semester1')" : ''}"
+                    ${!isSem1Active ? 'disabled' : ''}
+                    style="background-color: ${bgColor}; color: ${textColor}; font-size: ${baseFontSize * 1.25}px; opacity: ${isSem1Active ? 1 : 0.5}; cursor: ${isSem1Active ? 'pointer' : 'not-allowed'};"
+                    class="py-6 rounded-xl font-bold hover:opacity-80 transition-all border-4 border-transparent hover:border-opacity-50 relative">
+                    <div style="font-size: ${baseFontSize * 3}px;" class="mb-2">🍂</div>
+                    <div>الفصل الدراسي الأول</div>
+                    <div style="font-size: ${baseFontSize * 0.875}px;" class="opacity-70 mt-1">خريف المعرفة</div>
+                    ${!isSem1Active ? '<div class="absolute top-4 left-4 text-2xl">🔒</div>' : ''}
+                  </button>
+
+                  <button onclick="${isSem2Active ? "selectSemesterAndContinue('semester2')" : ''}"
+                    ${!isSem2Active ? 'disabled' : ''}
+                    style="background-color: ${bgColor}; color: ${textColor}; font-size: ${baseFontSize * 1.25}px; opacity: ${isSem2Active ? 1 : 0.5}; cursor: ${isSem2Active ? 'pointer' : 'not-allowed'};"
+                    class="py-6 rounded-xl font-bold hover:opacity-80 transition-all border-4 border-transparent hover:border-opacity-50 relative">
+                    <div style="font-size: ${baseFontSize * 3}px;" class="mb-2">🌸</div>
+                    <div>الفصل الدراسي الثاني</div>
+                    <div style="font-size: ${baseFontSize * 0.875}px;" class="opacity-70 mt-1">ربيع الإبداع</div>
+                    ${!isSem2Active ? '<div class="absolute top-4 left-4 text-2xl">🔒</div>' : ''}
+                  </button>
+
+                  <button onclick="${isSem3Active ? "selectSemesterAndContinue('semester3')" : ''}"
+                    ${!isSem3Active ? 'disabled' : ''}
+                    style="background-color: ${bgColor}; color: ${textColor}; font-size: ${baseFontSize * 1.25}px; opacity: ${isSem3Active ? 1 : 0.5}; cursor: ${isSem3Active ? 'pointer' : 'not-allowed'};"
+                    class="py-6 rounded-xl font-bold hover:opacity-80 transition-all border-4 border-transparent hover:border-opacity-50 relative">
                     <div style="font-size: ${baseFontSize * 3}px;" class="mb-2">🚀</div>
                     <div>عالم نافس</div>
                     <div style="font-size: ${baseFontSize * 0.875}px;" class="opacity-70 mt-1">تحدي نافس</div>
+                    ${!isSem3Active ? '<div class="absolute top-4 left-4 text-2xl">🔒</div>' : ''}
                   </button>
                 </div>
               </div>
@@ -1479,15 +1554,16 @@
                 
                 <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
                   ${currentIslandData.cities.map(city => {
+                    const isUnlocked = checkContentAvailability('city', city.id, gameState.selectedGrade || 'grade3');
                     const cityQuestionsCount = questions.filter(q => q.city_id === city.id && q.grade === (gameState.selectedGrade || 'grade3')).length;
                     return `
-                      <button onclick="${city.locked ? '' : `selectSubject('${city.id}')`}"
-                        ${city.locked ? 'disabled' : ''}
-                        style="background-color: ${city.locked ? bgColor : primaryColor}; color: ${textColor}; font-size: ${baseFontSize}px;"
-                        class="skill-button p-6 rounded-xl font-semibold transition-all ${city.locked ? 'opacity-40 cursor-not-allowed' : 'hover:opacity-90'}">
+                      <button onclick="${!isUnlocked ? '' : `selectSubject('${city.id}')`}"
+                        ${!isUnlocked ? 'disabled' : ''}
+                        style="background-color: ${!isUnlocked ? bgColor : primaryColor}; color: ${textColor}; font-size: ${baseFontSize}px;"
+                        class="skill-button p-6 rounded-xl font-semibold transition-all ${!isUnlocked ? 'opacity-40 cursor-not-allowed' : 'hover:opacity-90'}">
                         <div style="font-size: ${baseFontSize * 3}px;" class="mb-3">${city.emoji}</div>
                         <div style="font-size: ${baseFontSize * 1.125}px;" class="mb-2">${city.name}</div>
-                        ${city.locked ? `
+                        ${!isUnlocked ? `
                           <div style="font-size: ${baseFontSize * 1.5}px;" class="mt-2">🔒</div>
                         ` : `
                           <div style="font-size: ${baseFontSize * 0.75}px;" class="opacity-70">${cityQuestionsCount} سؤال متاح</div>
@@ -1696,7 +1772,7 @@
                     {key: 'D', text: currentQ.answer_d}
                   ].map((answer) => `
                     <button onclick="selectMultiplayerAnswer('${answer.key}')" id="mpAnswerBtn${answer.key}"
-                      style="background-color: ${bgColor}; color: ${textColor}; font-size: ${baseFontSize * 1.125}px;"
+                      style="background-color: ${bgColor}; color: ${textColor}; font-size: ${baseFontSize}px; font-family: 'Tajawal', sans-serif;"
                       class="py-4 px-4 rounded-xl font-bold hover:opacity-80 transition-all border-4 border-transparent flex items-center gap-4">
                       <span style="background-color: ${primaryColor}; color: ${textColor};" class="w-10 h-10 flex items-center justify-center rounded-full font-bold text-lg flex-shrink-0">${answer.key}</span>
                       <div id="answerText${answer.key}" class="flex-1 text-right">${answer.text}</div>
@@ -2068,7 +2144,7 @@
                     {key: 'D', text: currentQ.answer_d}
                   ].map((answer, idx) => `
                     <button onclick="selectAnswer('${answer.key}')" id="answerBtn${answer.key}"
-                      style="background-color: ${bgColor}; color: ${textColor}; font-size: ${baseFontSize * 1.125}px;"
+                      style="background-color: ${bgColor}; color: ${textColor}; font-size: ${baseFontSize}px; font-family: 'Tajawal', sans-serif;"
                       class="py-4 px-4 rounded-xl font-bold hover:opacity-80 transition-all border-4 border-transparent flex items-center gap-4">
                       <span style="background-color: ${primaryColor}; color: ${textColor};" class="w-10 h-10 flex items-center justify-center rounded-full font-bold text-lg flex-shrink-0">${answer.key}</span>
                       <div id="answerText${answer.key}" class="flex-1 text-right">${answer.text}</div>
@@ -2653,6 +2729,39 @@ D) 18
                 </div>
               </div>
               
+              <div style="background-color: ${cardColor};" class="rounded-2xl p-6 mb-6">
+                <h3 style="font-size: ${baseFontSize * 1.5}px; color: ${textColor};" class="font-bold mb-4">🎨 إعدادات المظهر</h3>
+                <div class="grid md:grid-cols-3 gap-4">
+                  <div>
+                    <label style="color: ${textColor}; font-size: ${baseFontSize}px;" class="block mb-2 font-semibold">نوع الخط</label>
+                    <select onchange="updateAppConfig('font_family', this.value)"
+                      style="background-color: ${bgColor}; color: ${textColor}; font-size: ${baseFontSize}px;"
+                      class="w-full px-4 py-3 rounded-lg outline-none">
+                      <option value="Cairo" ${window.elementSdk.config.font_family === 'Cairo' ? 'selected' : ''}>Cairo (الافتراضي)</option>
+                      <option value="Tajawal" ${window.elementSdk.config.font_family === 'Tajawal' ? 'selected' : ''}>Tajawal</option>
+                      <option value="Tahoma" ${window.elementSdk.config.font_family === 'Tahoma' ? 'selected' : ''}>Tahoma</option>
+                      <option value="Segoe UI" ${window.elementSdk.config.font_family === 'Segoe UI' ? 'selected' : ''}>Segoe UI</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label style="color: ${textColor}; font-size: ${baseFontSize}px;" class="block mb-2 font-semibold">حجم الخط (px)</label>
+                    <input type="number" min="14" max="30" value="${baseFontSize}"
+                      onchange="updateAppConfig('font_size', this.value)"
+                      style="background-color: ${bgColor}; color: ${textColor}; font-size: ${baseFontSize}px;"
+                      class="w-full px-4 py-3 rounded-lg outline-none">
+                  </div>
+                  <div>
+                    <label style="color: ${textColor}; font-size: ${baseFontSize}px;" class="block mb-2 font-semibold">الوضع (ليلي/نهاري)</label>
+                    <select onchange="toggleTheme(this.value)"
+                      style="background-color: ${bgColor}; color: ${textColor}; font-size: ${baseFontSize}px;"
+                      class="w-full px-4 py-3 rounded-lg outline-none">
+                      <option value="dark" ${window.elementSdk.config.background_color === '#1e293b' ? 'selected' : ''}>🌙 ليلي</option>
+                      <option value="light" ${window.elementSdk.config.background_color !== '#1e293b' ? 'selected' : ''}>☀️ نهاري</option>
+                    </select>
+                  </div>
+                </div>
+              </div>
+
               <div style="background-color: ${cardColor};" class="rounded-2xl p-6 mb-6">
                 <h3 style="font-size: ${baseFontSize * 1.5}px; color: ${textColor};" class="font-bold mb-4">🎫 إنشاء كود تفعيل جديد للمعلم</h3>
                 <form onsubmit="generateTeacherCode(event)" class="flex gap-3">
@@ -3765,6 +3874,7 @@ D) 18
 
     function backToSemester() {
       currentScreen = 'semester';
+      gameState.selectedSemester = '';
       renderCurrentScreen();
     }
 
@@ -5401,6 +5511,15 @@ D) 18
       }
     }
 
+    function playClickSound() {
+      if (isMuted) return;
+      const audio = document.getElementById('click-sound');
+      if (audio) {
+        audio.currentTime = 0;
+        audio.play().catch(() => {});
+      }
+    }
+
     function toggleMute() {
       isMuted = !isMuted;
       const btn = document.getElementById('muteBtn');
@@ -5959,6 +6078,32 @@ D) 18
       }
     };
 
+    window.updateAppConfig = function(key, value) {
+      if (!window.elementSdk.config) window.elementSdk.config = {};
+      window.elementSdk.config[key] = value;
+      localStorage.setItem('rhlat_' + key, value);
+      renderCurrentScreen();
+    };
+
+    window.toggleTheme = function(mode) {
+      const theme = mode === 'dark' ? {
+        background_color: "#1e293b",
+        card_surface_color: "#334155",
+        text_color: "#f8fafc"
+      } : {
+        background_color: "#f0f9ff",
+        card_surface_color: "#ffffff",
+        text_color: "#1e293b"
+      };
+
+      Object.entries(theme).forEach(([key, value]) => {
+        window.elementSdk.config[key] = value;
+        localStorage.setItem('rhlat_' + key, value);
+      });
+      
+      renderCurrentScreen();
+    };
+
     function renderMathQuestion(dbText, outputDiv) {
       if (!dbText) {
         if(outputDiv) outputDiv.innerHTML = '';
@@ -5970,7 +6115,7 @@ D) 18
       // Fix incomplete LaTeX for frac and sqrt by wrapping them in delimiters
       res = res.replace(/frac\{(.*?)\}\{(.*?)\}/g, '\\(\\frac{$1}{$2}\\)');
       res = res.replace(/sqrt\{(.*?)\}/g, '\\(\\sqrt{$1}\\)');
-      res = res.replace(/\btimes\b/g, '\\times');
+      res = res.replace(/\btimes\b/g, '\\(\\times\\)');
       res = res.replace(/\\rac{/g, '\\frac{'); // Fix common typo
       res = res.replace(/\\circ/g, '^{\\circ}'); // Normalize degree symbol
 
@@ -5984,40 +6129,44 @@ D) 18
       });
 
       // Now, process the remaining plain text
-      const numPattern = '[\\d\\u0660-\\u0669\\u06F0-\\u06F9]+';
+      // Updated to include numbers wrapped in curly braces {123} or {-123}
+      const numPattern = '(?:[\\d\\u0660-\\u0669\\u06F0-\\u06F9]+|\\{[-\\d\\u0660-\\u0669\\u06F0-\\u06F9]+\\}|\\\\\\(.*?\\\\\\))';
       const variablePattern = '[a-zA-Zسصعقكضطظ]'; // Added more Arabic letters
-      const termPattern = `(?:-?${numPattern}(?:\\.${numPattern})?|${variablePattern}(?:\\^${numPattern})?|${variablePattern})`;
+      const termPattern = `(?:-?${numPattern}(?:\\.${numPattern})?|${variablePattern}(?:\\^${numPattern})?|${variablePattern}|\\(.*?\\))`;
+      
+      // Helper to clean nested delimiters
+      const clean = (s) => s.replace(/^\\\s*\(\s*(.*)\s*\\\s*\)$/, '$1');
 
-      // Exponents: 5^3 or س^2 or 10^-5
-      const expRegex = new RegExp(`(${termPattern})\\s*\\^\\s*(-?${numPattern})`, 'g');
-      res = res.replace(expRegex, `\\($1^{$2}\\)`);
+      // Exponents: 5^3 or س^2 or 10^-5 or (x+1)^2
+      const expRegex = new RegExp(`(${termPattern})\\s*\\^\\s*(-?${termPattern})`, 'g');
+      res = res.replace(expRegex, (m, b, e) => `\\(${clean(b)}^{${clean(e)}}\\)`);
 
       // Mixed fractions: 1 2/3
       const mixedFracRegex = new RegExp(`(${numPattern})\\s+(${numPattern})\\s*[\\/÷]\\s*(${numPattern})`, 'g');
       res = res.replace(mixedFracRegex, `\\($1\\frac{$2}{$3}\\)`);
 
-      // Simple fractions: 1/2
-      const fracRegex = new RegExp(`(${termPattern})\\s*[\\/÷]\\s*(${numPattern})`, 'g');
-      res = res.replace(fracRegex, `\\(\\frac{$1}{$2}\\)`);
+      // Simple fractions: 1/2 or x/y or (a+b)/(c-d)
+      const fracRegex = new RegExp(`(${termPattern})\\s*[\\/÷]\\s*(${termPattern})`, 'g');
+      res = res.replace(fracRegex, (m, n, d) => `\\(\\frac{${clean(n)}}{${clean(d)}}\\)`);
 
       // Roots: sqrt(x), جذر(x), √x
-      res = res.replace(/(?:sqrt|جذر|√)\s*\(\s*(.*?)\s*\)/g, `\\(\\sqrt{$1}\\)`);
+      res = res.replace(/(?:sqrt|جذر|√)\s*\(\s*(.*?)\s*\)/g, (m, c) => `\\(\\sqrt{${clean(c)}}\\)`);
       // More robust regex for roots without parentheses, captures until a space or operator
-      res = res.replace(/(?:جذر|√)\s*([^\s\)\(\+\-\*\/=^<>,.!]+)/g, '\\(\\sqrt{$1}\\)');
+      res = res.replace(/(?:sqrt|جذر|√)\s*([^\s\)\(\+\-\*\/=^<>,.!]+)/g, (m, c) => `\\(\\sqrt{${clean(c)}}\\)`);
 
       // Percentage and Degree: 50% or 90°
       res = res.replace(new RegExp(`(${numPattern})\\s*%`, 'g'), `\\($1\\%\\)`);
       res = res.replace(new RegExp(`(${numPattern})\\s*°`, 'g'), `\\($1^{\\circ}\\)`);
       
       // Angles: زاوية(أ) or angle(A)
-      res = res.replace(/(?:angle|زاوية)\s*\(\s*(.*?)\s*\)/g, '\\(\\angle $1\\)');
+      res = res.replace(/(?:angle|زاوية)\s*\(\s*(.*?)\s*\)/g, (m, c) => `\\(\\angle ${clean(c)}\\)`);
 
       // Greater/Less than or equal: 3 ge x or 3 le x
       res = res.replace(new RegExp(`(${termPattern})\\s+ge\\\\?\\s+(${termPattern})`, 'g'), '\\($1 \\ge $2\\)');
       res = res.replace(new RegExp(`(${termPattern})\\s+le\\\\?\\s+(${termPattern})`, 'g'), '\\($1 \\le $2\\)');
 
       // Division symbol: div(5)
-      res = res.replace(/div\s*\(\s*(.*?)\s*\)/g, '\\(\\div $1\\)');
+      res = res.replace(/div\s*\(\s*(.*?)\s*\)/g, (m, c) => `\\(\\div ${clean(c)}\\)`);
 
       // Handle chemistry \ce{}
       res = res.replace(/كيمياء\((.*?)\)/g, `\\(\\ce{$1}\\)`);
@@ -6368,6 +6517,13 @@ D) 18
     // بدء التطبيق
     document.addEventListener('DOMContentLoaded', async () => {
       await init();
+      
+      // إضافة مستمع لحدث النقر لتشغيل الصوت عند الضغط على أي زر أو عنصر تفاعلي
+      document.addEventListener('click', (e) => {
+        if (e.target.closest('button') || e.target.closest('[onclick]') || e.target.closest('a')) {
+          playClickSound();
+        }
+      });
     });
   </script>
 </body>

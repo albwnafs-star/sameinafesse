@@ -763,7 +763,6 @@
             .map(u => ({
               user_id: u.user_id, // UUID فقط
               username: u.username,
-              email: u.email, // <-- إضافة البريد الإلكتروني للمزامنة
               full_name: u.full_name,
               user_type: u.user_type,
               is_approved: u.is_approved ?? true,
@@ -1122,16 +1121,6 @@
         onConfigChange: () => {}
       };
       
-      // معالجة تسجيل الدخول عبر جوجل (OAuth)
-      supabaseSdk.client.auth.onAuthStateChange(async (event, session) => {
-        // يتم تفعيل هذا الحدث عند عودة المستخدم من صفحة جوجل
-        if (event === 'SIGNED_IN' && session) {
-          await handleOAuthLogin(session.user);
-        } else if (event === 'SIGNED_OUT') {
-          logout();
-        }
-      });
-
       renderCurrentScreen();
       
       // تشغيل المزامنة في الخلفية (صامتة) لتسريع البدء
@@ -1201,9 +1190,6 @@
       
       // 1. شاشة تسجيل الدخول
       if (currentScreen === 'login') {
-        const rememberedUsername = localStorage.getItem('rememberedUsername') || '';
-        const isRemembered = rememberedUsername !== '';
-
         content = `
           <div class="flex items-center justify-center min-h-full p-4" style="background-color: ${bgColor};">
             <div class="w-full max-w-md">
@@ -1218,11 +1204,11 @@
                 
                 <form id="loginForm" onsubmit="handleLogin(event)" class="space-y-4">
                   <div>
-                    <label style="color: ${textColor}; font-size: ${baseFontSize}px;" class="block mb-2 font-semibold">اسم المستخدم</label>
-                    <input type="text" id="login_username" required
-                      style="background-color: ${bgColor}; color: ${textColor}; font-size: ${baseFontSize}px;" value="${rememberedUsername}"
+                    <label style="color: ${textColor}; font-size: ${baseFontSize}px;" class="block mb-2 font-semibold">البريد الإلكتروني</label>
+                    <input type="email" id="login_email" required
+                      style="background-color: ${bgColor}; color: ${textColor}; font-size: ${baseFontSize}px;"
                       class="w-full px-4 py-3 rounded-lg border-2 border-transparent focus:border-opacity-50 outline-none"
-                      placeholder="أدخل اسم المستخدم">
+                      placeholder="أدخل البريد الإلكتروني">
                   </div>
                   
                   <div>
@@ -1233,36 +1219,12 @@
                       placeholder="أدخل كلمة المرور">
                   </div>
                   
-                  <div class="flex items-center justify-between pt-2">
-                    <div class="flex items-center">
-                      <input id="rememberMe" name="rememberMe" type="checkbox" ${isRemembered ? 'checked' : ''}
-                        style="accent-color: ${primaryColor};"
-                        class="h-4 w-4 rounded border-gray-400">
-                      <label for="rememberMe" style="color: ${textColor}; font-size: ${baseFontSize * 0.875}px;" class="mr-2 block">
-                        تذكرني
-                      </label>
-                    </div>
-                  </div>
-                  
                   <button type="submit"
                     style="background-color: ${primaryColor}; color: ${textColor}; font-size: ${baseFontSize * 1.125}px;"
-                    class="w-full py-4 rounded-lg font-bold mt-4 hover:opacity-90 transition-all pulse-glow">
+                    class="w-full py-4 rounded-lg font-bold mt-6 hover:opacity-90 transition-all pulse-glow">
                     تسجيل الدخول 🔐
                   </button>
                 </form>
-                
-                <div class="relative flex py-4 items-center">
-                  <div class="flex-grow border-t border-gray-600"></div>
-                  <span class="flex-shrink-0 mx-4 text-gray-400">أو</span>
-                  <div class="flex-grow border-t border-gray-600"></div>
-                </div>
-
-                <button type="button" onclick="signInWithGoogle()"
-                  style="background-color: #FFF; color: #1f2937; font-size: ${baseFontSize * 1.125}px;"
-                  class="w-full py-3 rounded-lg font-bold hover:opacity-90 transition-all flex items-center justify-center gap-3 border border-gray-300">
-                  <img src="https://www.google.com/favicon.ico" alt="Google" class="w-6 h-6">
-                  تسجيل الدخول باستخدام جوجل
-                </button>
                 
                 <div class="mt-6 flex items-center justify-between">
                   <button onclick="goToRegister()"
@@ -1297,17 +1259,10 @@
                 <form id="resetPasswordForm" onsubmit="handleForgotPassword(event)" class="space-y-4">
                   <div>
                     <label style="color: ${textColor}; font-size: ${baseFontSize}px;" class="block mb-2 font-semibold">البريد الإلكتروني</label>
-                    <input type="email" id="register_email" required
+                    <input type="email" id="forgot_email" required
                       style="background-color: ${bgColor}; color: ${textColor}; font-size: ${baseFontSize}px;"
                       class="w-full px-4 py-3 rounded-lg border-2 border-transparent outline-none"
                       placeholder="أدخل بريدك الإلكتروني">
-                  </div>
-                  <div>
-                    <label style="color: ${textColor}; font-size: ${baseFontSize}px;" class="block mb-2 font-semibold">اسم المستخدم</label>
-                    <input type="text" id="forgot_username" required
-                      style="background-color: ${bgColor}; color: ${textColor}; font-size: ${baseFontSize}px;"
-                      class="w-full px-4 py-3 rounded-lg border-2 border-transparent outline-none"
-                      placeholder="أدخل اسم المستخدم">
                   </div>
                   
                   <button type="submit"
@@ -1343,6 +1298,13 @@
               
               <div style="background-color: ${cardColor};" class="rounded-2xl p-8 shadow-2xl">
                 <form id="registerForm" onsubmit="handleRegister(event)" class="space-y-4">
+                  <div>
+                    <label style="color: ${textColor}; font-size: ${baseFontSize}px;" class="block mb-2 font-semibold">البريد الإلكتروني</label>
+                    <input type="email" id="register_email" required
+                      style="background-color: ${bgColor}; color: ${textColor}; font-size: ${baseFontSize}px;"
+                      class="w-full px-4 py-3 rounded-lg border-2 border-transparent outline-none"
+                      placeholder="أدخل بريدك الإلكتروني">
+                  </div>
                   
                   <div>
                     <label style="color: ${textColor}; font-size: ${baseFontSize}px;" class="block mb-2 font-semibold">الاسم الكامل</label>
@@ -3455,28 +3417,16 @@ D) 18
     async function handleLogin(e) {
       e.preventDefault();
 
-      const username = document.getElementById('login_username').value.trim().toLowerCase();
+      const email = document.getElementById('login_email').value.trim();
       const password = document.getElementById('login_password').value;
 
-      if (!username || !password) {
-        showToast('يرجى إدخال اسم المستخدم وكلمة المرور', 'error');
-        return;
-      }
-
-      // البحث عن المستخدم عن طريق اسم المستخدم لجلب البريد الإلكتروني
-      const { data: foundUser, error: findError } = await supabaseSdk.client
-        .from('users')
-        .select('email')
-        .eq('username', username)
-        .single();
-
-      if (findError || !foundUser) {
-        showToast('اسم المستخدم أو كلمة المرور غير صحيحة', 'error');
+      if (!email || !password) {
+        showToast('يرجى إدخال البريد وكلمة المرور', 'error');
         return;
       }
 
       const { data, error } = await supabaseSdk.client.auth.signInWithPassword({
-        email: foundUser.email,
+        email,
         password
       });
 
@@ -3498,15 +3448,6 @@ D) 18
       }
 
       currentUser = userData;
-
-      // --- Remember Me Logic ---
-      const rememberMe = document.getElementById('rememberMe').checked;
-      if (rememberMe) {
-        localStorage.setItem('rememberedUsername', username);
-      } else {
-        localStorage.removeItem('rememberedUsername');
-      }
-      // --- End Remember Me ---
       showToast('تم تسجيل الدخول بنجاح ✅', 'success');
 
       // بدء المزامنة والنسخ الاحتياطي بعد تسجيل الدخول
@@ -3554,9 +3495,9 @@ D) 18
     async function handleRegister(e) {
       e.preventDefault();
 
-      const email = document.getElementById('register_email').value.trim().toLowerCase();
+      const email = document.getElementById('register_email').value.trim();
       const password = document.getElementById('register_password').value;
-      const username = document.getElementById('register_username').value.trim().toLowerCase();
+      const username = document.getElementById('register_username').value.trim();
       const fullName = document.getElementById('register_fullname').value.trim();
       let userType = 'student';
 
@@ -3582,7 +3523,6 @@ D) 18
       const { error: dbError } = await supabaseSdk.client.from('users').insert({
         user_id: data.user.id,
         username,
-        email,
         full_name: fullName,
         user_type: userType,
         skills_mastered: 0,
@@ -3603,7 +3543,6 @@ D) 18
     function logout() {
       currentUser = null;
       currentScreen = 'login';
-      localStorage.removeItem('supabase.auth.token'); // Clear session
       gameState = {
         selectedGrade: '',
         selectedSemester: '',
@@ -3638,22 +3577,10 @@ D) 18
     async function handleForgotPassword(e) {
       e.preventDefault();
 
-      const username = document.getElementById('forgot_username').value.trim().toLowerCase();
+      const email = document.getElementById('forgot_email').value.trim();
 
-      if (!username) {
-        showToast('يرجى إدخال اسم المستخدم', 'error');
-        return;
-      }
-
-      // البحث عن البريد الإلكتروني المرتبط باسم المستخدم
-      const { data: foundUser, error: findError } = await supabaseSdk.client
-        .from('users')
-        .select('email')
-        .eq('username', username)
-        .single();
-
-      if (findError || !foundUser) {
-        showToast('اسم المستخدم غير موجود', 'error');
+      if (!email) {
+        showToast('يرجى إدخال البريد الإلكتروني', 'error');
         return;
       }
 
@@ -3668,80 +3595,6 @@ D) 18
 
       showToast('تم إرسال رابط استعادة كلمة المرور 📩', 'success');
       goToLogin();
-    }
-
-    async function signInWithGoogle() {
-      showLoader('جاري التوجيه إلى جوجل...');
-      const { error } = await supabaseSdk.client.auth.signInWithOAuth({
-        provider: 'google',
-        options: {
-          // سيقوم هذا الرابط بالعمل على الخادم المحلي و GitHub Pages
-          // تأكد من إضافة الرابط الصحيح في إعدادات Supabase
-          redirectTo: window.location.href
-        }
-      });
-      if (error) {
-        hideLoader();
-        showToast('فشل تسجيل الدخول باستخدام جوجل: ' + error.message, 'error');
-      }
-    }
-
-    async function handleOAuthLogin(user) {
-      showLoader('جاري إعداد حسابك...');
-
-      // 1. التحقق من وجود المستخدم في جدول profiles
-      let { data: userData, error } = await supabaseSdk.client
-          .from('users')
-          .select('*')
-          .eq('user_id', user.id)
-          .single();
-
-      if (error && error.code !== 'PGRST116') { // PGRST116 = 'No rows found'
-          hideLoader();
-          showToast('فشل تحميل بيانات المستخدم', 'error');
-          console.error('Error fetching user profile:', error);
-          return;
-      }
-
-      // 2. إذا لم يكن المستخدم موجوداً، يتم إنشاء ملف شخصي جديد له
-      if (!userData) {
-          const username = user.email.split('@')[0].replace(/[^a-zA-Z0-9]/g, '');
-          const newUserProfile = {
-              user_id: user.id,
-              email: user.email,
-              full_name: user.user_metadata.full_name || username,
-              username: username,
-              user_type: 'student', // تعيين المستخدم الجديد كطالب بشكل افتراضي
-              is_approved: true,
-          };
-
-          const { data: insertedData, error: insertError } = await supabaseSdk.client
-              .from('users')
-              .insert(newUserProfile)
-              .select()
-              .single();
-
-          if (insertError) {
-              hideLoader();
-              showToast('فشل إنشاء ملف المستخدم الجديد', 'error');
-              console.error('Error creating user profile:', insertError);
-              return;
-          }
-          userData = insertedData;
-          showToast('مرحباً بك! تم إنشاء حسابك بنجاح.', 'success');
-      }
-
-      // 3. تعيين المستخدم الحالي وتوجيهه
-      currentUser = userData;
-      hideLoader();
-      showToast(`مرحباً بعودتك، ${currentUser.full_name || currentUser.username}!`, 'success');
-
-      if (currentUser.user_type === 'teacher' || currentUser.user_type === 'admin') {
-          currentScreen = 'admin';
-      } else {
-          currentScreen = 'semester';
-      }
-      renderCurrentScreen();
     }
 
     function goToLogin() {
@@ -5978,8 +5831,6 @@ D) 18
     window.saveQuestionsToHistory = (q, l) => supabaseSdk.saveQuestionsToHistory(q, l);
     window.goToForgotPassword = goToForgotPassword;
     window.handleForgotPassword = handleForgotPassword;
-    window.signInWithGoogle = signInWithGoogle;
-    window.handleOAuthLogin = handleOAuthLogin;
     window.goToLeaderboard = () => {
       currentScreen = 'leaderboard';
       renderCurrentScreen();

@@ -124,7 +124,7 @@
       color: #333;
       unicode-bidi: isolate; /* عزل اتجاه النص */
     }
-
+    
     /* عكس اتجاه الجذر التربيعي ليناسب العربية */
     mjx-sqrt {
       transform: scaleX(-1);
@@ -359,7 +359,7 @@
       secondary_action_color: "#8b5cf6",
       font_family: "Cairo",
       font_size: 16,
-      game_title: "عالم نافس ",
+      game_title: "عالم نافس",
       game_subtitle: "استكشف عالم التعلم المثير",
       guide_name: "نور",
       welcome_message: "مرحباً بك يا مستكشف نافس!"
@@ -1198,27 +1198,6 @@
       document.body.style.fontSize = `${baseFontSize}px`;
     }
 
-    // Helper to check if content exists
-    function checkContentAvailability(type, id, grade) {
-      if (type === 'city') {
-        const cityId = id;
-        const subjectName = cityId.replace('_test', '');
-        
-        // Check static skills
-        const hasStatic = skills[cityId]?.[grade]?.length > 0;
-        
-        // Check dynamic castles
-        const hasDynamic = learningCastles.some(c => c.subject === subjectName && c.grade === grade);
-        
-        return hasStatic || hasDynamic;
-      } else if (type === 'semester') {
-        const semesterId = id;
-        const cities = islands[semesterId]?.cities || [];
-        return cities.some(city => checkContentAvailability('city', city.id, grade));
-      }
-      return false;
-    }
-
     function renderCurrentScreen() {
       applyStyles();
       const app = document.getElementById('app');
@@ -1448,7 +1427,7 @@
                   </button>
                 </div>
 
-                <button onclick="window.backToSemester()"
+                <button onclick="backToSemester()"
                   style="background-color: ${bgColor}; color: ${textColor}; font-size: ${baseFontSize}px;"
                   class="w-full py-3 rounded-lg font-semibold hover:opacity-80 transition-all">
                   ⬅️ العودة لعالم نافس
@@ -1461,11 +1440,6 @@
       
       // 4. شاشة اختيار الفصل الدراسي
       else if (currentScreen === 'semester') {
-        const selectedGrade = gameState.selectedGrade || 'grade3';
-        const isSem1Active = checkContentAvailability('semester', 'semester1', selectedGrade);
-        const isSem2Active = checkContentAvailability('semester', 'semester2', selectedGrade);
-        const isSem3Active = checkContentAvailability('semester', 'semester3', selectedGrade);
-
         content = `
           <div class="flex items-center justify-center min-h-full p-4" style="background-color: ${bgColor};">
             <div class="w-full max-w-2xl">
@@ -1489,34 +1463,12 @@
                 </div>
                 
                 <div class="grid grid-cols-1 gap-4 mb-6">
-                  <button onclick="${isSem1Active ? "selectSemesterAndContinue('semester1')" : ''}"
-                    ${!isSem1Active ? 'disabled' : ''}
-                    style="background-color: ${bgColor}; color: ${textColor}; font-size: ${baseFontSize * 1.25}px; opacity: ${isSem1Active ? 1 : 0.5}; cursor: ${isSem1Active ? 'pointer' : 'not-allowed'};"
-                    class="py-6 rounded-xl font-bold hover:opacity-80 transition-all border-4 border-transparent hover:border-opacity-50 relative">
-                    <div style="font-size: ${baseFontSize * 3}px;" class="mb-2">🍂</div>
-                    <div>الفصل الدراسي الأول</div>
-                    <div style="font-size: ${baseFontSize * 0.875}px;" class="opacity-70 mt-1">خريف المعرفة</div>
-                    ${!isSem1Active ? '<div class="absolute top-4 left-4 text-2xl">🔒</div>' : ''}
-                  </button>
-
-                  <button onclick="${isSem2Active ? "selectSemesterAndContinue('semester2')" : ''}"
-                    ${!isSem2Active ? 'disabled' : ''}
-                    style="background-color: ${bgColor}; color: ${textColor}; font-size: ${baseFontSize * 1.25}px; opacity: ${isSem2Active ? 1 : 0.5}; cursor: ${isSem2Active ? 'pointer' : 'not-allowed'};"
-                    class="py-6 rounded-xl font-bold hover:opacity-80 transition-all border-4 border-transparent hover:border-opacity-50 relative">
-                    <div style="font-size: ${baseFontSize * 3}px;" class="mb-2">🌸</div>
-                    <div>الفصل الدراسي الثاني</div>
-                    <div style="font-size: ${baseFontSize * 0.875}px;" class="opacity-70 mt-1">ربيع الإبداع</div>
-                    ${!isSem2Active ? '<div class="absolute top-4 left-4 text-2xl">🔒</div>' : ''}
-                  </button>
-
-                  <button onclick="${isSem3Active ? "selectSemesterAndContinue('semester3')" : ''}"
-                    ${!isSem3Active ? 'disabled' : ''}
-                    style="background-color: ${bgColor}; color: ${textColor}; font-size: ${baseFontSize * 1.25}px; opacity: ${isSem3Active ? 1 : 0.5}; cursor: ${isSem3Active ? 'pointer' : 'not-allowed'};"
-                    class="py-6 rounded-xl font-bold hover:opacity-80 transition-all border-4 border-transparent hover:border-opacity-50 relative">
+                  <button onclick="selectSemesterAndContinue('semester3')"
+                    style="background-color: ${bgColor}; color: ${textColor}; font-size: ${baseFontSize * 1.25}px;"
+                    class="py-6 rounded-xl font-bold hover:opacity-80 transition-all border-4 border-transparent hover:border-opacity-50">
                     <div style="font-size: ${baseFontSize * 3}px;" class="mb-2">🚀</div>
                     <div>عالم نافس</div>
                     <div style="font-size: ${baseFontSize * 0.875}px;" class="opacity-70 mt-1">تحدي نافس</div>
-                    ${!isSem3Active ? '<div class="absolute top-4 left-4 text-2xl">🔒</div>' : ''}
                   </button>
                 </div>
               </div>
@@ -1554,16 +1506,15 @@
                 
                 <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
                   ${currentIslandData.cities.map(city => {
-                    const isUnlocked = checkContentAvailability('city', city.id, gameState.selectedGrade || 'grade3');
                     const cityQuestionsCount = questions.filter(q => q.city_id === city.id && q.grade === (gameState.selectedGrade || 'grade3')).length;
                     return `
-                      <button onclick="${!isUnlocked ? '' : `selectSubject('${city.id}')`}"
-                        ${!isUnlocked ? 'disabled' : ''}
-                        style="background-color: ${!isUnlocked ? bgColor : primaryColor}; color: ${textColor}; font-size: ${baseFontSize}px;"
-                        class="skill-button p-6 rounded-xl font-semibold transition-all ${!isUnlocked ? 'opacity-40 cursor-not-allowed' : 'hover:opacity-90'}">
+                      <button onclick="${city.locked ? '' : `selectSubject('${city.id}')`}"
+                        ${city.locked ? 'disabled' : ''}
+                        style="background-color: ${city.locked ? bgColor : primaryColor}; color: ${textColor}; font-size: ${baseFontSize}px;"
+                        class="skill-button p-6 rounded-xl font-semibold transition-all ${city.locked ? 'opacity-40 cursor-not-allowed' : 'hover:opacity-90'}">
                         <div style="font-size: ${baseFontSize * 3}px;" class="mb-3">${city.emoji}</div>
                         <div style="font-size: ${baseFontSize * 1.125}px;" class="mb-2">${city.name}</div>
-                        ${!isUnlocked ? `
+                        ${city.locked ? `
                           <div style="font-size: ${baseFontSize * 1.5}px;" class="mt-2">🔒</div>
                         ` : `
                           <div style="font-size: ${baseFontSize * 0.75}px;" class="opacity-70">${cityQuestionsCount} سؤال متاح</div>
@@ -3874,7 +3825,6 @@ D) 18
 
     function backToSemester() {
       currentScreen = 'semester';
-      gameState.selectedSemester = '';
       renderCurrentScreen();
     }
 
@@ -6118,6 +6068,14 @@ D) 18
       res = res.replace(/\btimes\b/g, '\\(\\times\\)');
       res = res.replace(/\\rac{/g, '\\frac{'); // Fix common typo
       res = res.replace(/\\circ/g, '^{\\circ}'); // Normalize degree symbol
+
+      // Helper to convert English digits to Arabic
+      const toArabicDigits = (str) => str.replace(/\d/g, d => '٠١٢٣٤٥٦٧٨٩'[d]);
+
+      // Arabic Fraction: كسر_عربي(1, 2) -> \frac{١}{٢}
+      res = res.replace(/كسر_عربي\s*\(\s*(.*?)\s*[,،]\s*(.*?)\s*\)/g, (m, n, d) => `\\(\\frac{${toArabicDigits(n)}}{${toArabicDigits(d)}}\\)`);
+      // Standard Fraction: كسر(1, 2) -> \frac{1}{2}
+      res = res.replace(/كسر\s*\(\s*(.*?)\s*[,،]\s*(.*?)\s*\)/g, '\\(\\frac{$1}{$2}\\)');
 
       // --- Stage 2: Convert plain text math to LaTeX, avoiding what's already formatted ---
       const placeholders = [];

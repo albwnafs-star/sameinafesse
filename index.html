@@ -1132,6 +1132,36 @@
       // استعادة إعدادات الصوت
       isMuted = localStorage.getItem('rhlat_isMuted') === 'true';
       
+      // استعادة جلسة المستخدم
+      const savedUserId = localStorage.getItem('rhlat_current_user_id');
+      if (savedUserId) {
+        const foundUser = users.find(u => u.user_id === savedUserId);
+        if (foundUser) {
+          currentUser = foundUser;
+          
+          // استعادة حالة اللعبة
+          const savedState = localStorage.getItem('rhlat_gamestate');
+          if (savedState) {
+            try { gameState = JSON.parse(savedState); } catch(e) {}
+          } else if (currentUser.progress_data && typeof currentUser.progress_data === 'string' && currentUser.progress_data !== '{}') {
+            try { gameState = { ...gameState, ...JSON.parse(currentUser.progress_data) }; } catch(e) {}
+          }
+
+          // توجيه المستخدم للشاشة المناسبة
+          if (currentUser.user_type === 'teacher') currentScreen = 'admin';
+          else if (currentUser.user_type === 'parent') currentScreen = 'parent_report';
+          else if (currentUser.user_type === 'admin') currentScreen = 'admin_panel';
+          else {
+            if (gameState.currentQuestions && gameState.currentQuestions.length > 0) currentScreen = 'challenge';
+            else if (gameState.currentUnit) currentScreen = 'lesson';
+            else if (gameState.currentCastle) currentScreen = 'castle';
+            else if (gameState.selectedGrade) currentScreen = 'subjects';
+            else if (gameState.selectedSemester) currentScreen = 'setup';
+            else currentScreen = 'semester';
+          }
+        }
+      }
+
       // استعادة إعدادات المظهر
       const savedFont = localStorage.getItem('rhlat_font_family');
       const savedSize = localStorage.getItem('rhlat_font_size');
@@ -2431,12 +2461,26 @@
                           <div style="background-color: ${cardColor};" class="rounded-lg p-3 mb-2">
                             <pre style="font-size: ${baseFontSize * 0.75}px; color: ${textColor};" class="opacity-70 whitespace-pre-wrap">مثال مرن للترقيم:
 
-س1: ما ناتج 5 + 3 = ؟
+السؤال 1: ما ناتج 5 + 3 = ؟
 أ) 6
 ب) 7
 ج) 8
 د) 9
 الإجابة: ج
+
+س2 ما ناتج 10 - 4 = ؟
+أ) 4
+ب) 5
+ج) 6
+د) 7
+الإجابة: ج
+
+3- ما ناتج 7 × 2 = ؟
+A) 12
+B) 14
+C) 16
+D) 18
+الإجابة: B
 
 ✨ الترقيم المدعوم:
 • "السؤال 1:" أو "السؤال:"
@@ -2503,6 +2547,21 @@
                         <div id="textInputContainer" style="display: none;">
                             <label style="color: ${textColor}; font-size: ${baseFontSize}px;" class="block mb-2 font-semibold">نص السؤال *</label>
                             <textarea id="questionTextSingle" rows="3" style="background-color: ${bgColor}; color: ${textColor}; font-size: ${baseFontSize}px;" class="w-full px-4 py-3 rounded-lg outline-none" placeholder="اكتب نص السؤال هنا..."></textarea>
+                        </div>
+                      </div>
+
+                      <div class="grid md:grid-cols-2 gap-4">
+                        <div>
+                          <label style="color: ${textColor}; font-size: ${baseFontSize}px;" class="block mb-2 font-semibold">مستوى الصعوبة *</label>
+                          <select id="difficultyLevel" required style="background-color: ${bgColor}; color: ${textColor}; font-size: ${baseFontSize}px;" class="w-full px-4 py-3 rounded-lg outline-none">
+                            <option value="easy">سهل 🟢</option>
+                            <option value="medium" selected>متوسط 🟡</option>
+                            <option value="hard">صعب 🔴</option>
+                          </select>
+                        </div>
+                        <div>
+                          <label style="color: ${textColor}; font-size: ${baseFontSize}px;" class="block mb-2 font-semibold">النقاط *</label>
+                          <input type="number" id="pointsValue" value="10" required min="1" style="background-color: ${bgColor}; color: ${textColor}; font-size: ${baseFontSize}px;" class="w-full px-4 py-3 rounded-lg outline-none">
                         </div>
                       </div>
 
@@ -3462,6 +3521,14 @@
 
     // === دوال المعالجة الأساسية ===
 
+    function persistState() {
+      if (currentUser) {
+        localStorage.setItem('rhlat_gamestate', JSON.stringify(gameState));
+        currentUser.progress_data = JSON.stringify(gameState);
+        window.dataSdk.update(currentUser);
+      }
+    }
+
     async function hashPassword(password) {
       const msgBuffer = new TextEncoder().encode(password);
       const hashBuffer = await crypto.subtle.digest('SHA-256', msgBuffer);
@@ -3504,6 +3571,7 @@
 
       currentUser = userData;
       showToast('تم تسجيل الدخول بنجاح ✅', 'success');
+      localStorage.setItem('rhlat_current_user_id', currentUser.user_id);
 
       // بدء المزامنة والنسخ الاحتياطي بعد تسجيل الدخول
       supabaseSdk.backupData().then(() => supabaseSdk.syncData(true));
@@ -3543,6 +3611,7 @@
           }
         }
       }
+      persistState();
 
       renderCurrentScreen();
     }
@@ -3598,6 +3667,8 @@
     function logout() {
       currentUser = null;
       currentScreen = 'login';
+      localStorage.removeItem('rhlat_current_user_id');
+      localStorage.removeItem('rhlat_gamestate');
       gameState = {
         selectedGrade: '',
         selectedSemester: '',
@@ -3802,6 +3873,7 @@
 
     function selectGradeAndContinue(grade) {
       gameState.selectedGrade = grade;
+      persistState();
       currentScreen = 'subjects';
       renderCurrentScreen();
     }
@@ -3809,32 +3881,42 @@
     function selectSemesterAndContinue(semester) {
       gameState.selectedSemester = semester;
       gameState.currentIsland = semester;
+      persistState();
       currentScreen = 'setup';
       renderCurrentScreen();
     }
 
     function backToGrade() {
+      gameState.selectedGrade = '';
+      persistState();
       currentScreen = 'setup';
       renderCurrentScreen();
     }
 
     function backToSemester() {
+      gameState.selectedSemester = '';
+      persistState();
       currentScreen = 'semester';
       renderCurrentScreen();
     }
 
     function backToSubjects() {
+      gameState.currentCastle = '';
+      persistState();
       currentScreen = 'subjects';
       renderCurrentScreen();
     }
 
     function backToCastle() {
+      gameState.currentUnit = '';
+      persistState();
       currentScreen = 'castle';
       renderCurrentScreen();
     }
 
     function selectSubject(cityId) {
       gameState.currentCastle = cityId;
+      persistState();
       currentScreen = 'castle';
       renderCurrentScreen();
     }
@@ -5158,6 +5240,7 @@
       const unitQuestions = questions.filter(q => q.skill_id === unitId && q.city_id === gameState.currentCastle);
       
       gameState.currentUnit = unitId;
+      persistState();
       currentScreen = 'lesson';
       renderCurrentScreen();
     }
@@ -5276,6 +5359,7 @@
       gameState.correctAnswers = 0;
       gameState.selectedAnswer = null;
       
+      persistState();
       hideLoader();
       currentScreen = 'challenge';
       showQuestion(0);
@@ -5378,6 +5462,7 @@
         supabaseSdk.recordHistory(currentQ.__backendId || currentQ.question_id, false, gameState.currentUnit);
       }
       
+      persistState();
       setTimeout(() => {
         goToNextQuestion();
       }, 1500);
@@ -5438,6 +5523,8 @@
           }
         }
       }
+      gameState.currentQuestions = [];
+      persistState();
       currentScreen = 'results';
       renderCurrentScreen();
     }
@@ -6294,6 +6381,12 @@
       document.getElementById('newAnswerC').value = question.answer_c;
       document.getElementById('newAnswerD').value = question.answer_d;
       document.getElementById('newCorrectAnswer').value = question.correct_answer;
+      
+      const diffEl = document.getElementById('difficultyLevel');
+      if(diffEl) diffEl.value = question.difficulty_level || 'medium';
+      
+      const pointsEl = document.getElementById('pointsValue');
+      if(pointsEl) pointsEl.value = question.points_value || 10;
 
       // Change button
       const btn = document.getElementById('uploadQuestionBtn');
@@ -6317,6 +6410,7 @@
     }
 
     async function uploadQuestionImage() {
+      try {
       const grade = document.getElementById('gradeSelect').value;
       const subject = document.getElementById('subjectSelect').value;
       const skill = document.getElementById('skillSelect').value;
@@ -6334,8 +6428,11 @@
       const answerC = document.getElementById('newAnswerC').value;
       const answerD = document.getElementById('newAnswerD').value;
       const correctAnswer = document.getElementById('newCorrectAnswer').value;
+      
+      const difficulty = document.getElementById('difficultyLevel').value;
+      const points = document.getElementById('pointsValue').value;
 
-      if (!grade || !subject || !skill || !answerA || !answerB || !answerC || !answerD || !correctAnswer) {
+      if (!grade || !subject || !skill || !answerA || !answerB || !answerC || !answerD || !correctAnswer || !difficulty || !points) {
         showToast('الرجاء تعبئة جميع الحقول المطلوبة', 'error');
         return;
       }
@@ -6392,14 +6489,23 @@
       
       btn.textContent = editingQuestionId ? 'جاري تحديث السؤال...' : 'جاري حفظ السؤال...';
 
-      await saveQuestion(finalQuestionContent, { grade, subject, skill, answerA, answerB, answerC, answerD, correctAnswer });
+      await saveQuestion(finalQuestionContent, { grade, subject, skill, answerA, answerB, answerC, answerD, correctAnswer, difficulty, points });
       
       btn.disabled = false;
       btn.textContent = '✅ حفظ السؤال';
+      } catch (e) {
+        console.error(e);
+        showToast('حدث خطأ: ' + e.message, 'error');
+        const btn = document.getElementById('uploadQuestionBtn');
+        if(btn) {
+            btn.disabled = false;
+            btn.textContent = '✅ حفظ السؤال';
+        }
+      }
     }
 
     async function saveQuestion(imageUrl, details) {
-      const { grade, subject, skill, answerA, answerB, answerC, answerD, correctAnswer } = details;
+      const { grade, subject, skill, answerA, answerB, answerC, answerD, correctAnswer, difficulty, points } = details;
 
       if (editingQuestionId) {
         const questionToUpdate = questions.find(q => q.__backendId === editingQuestionId);
@@ -6419,6 +6525,8 @@
             answer_c: answerC,
             answer_d: answerD,
             correct_answer: correctAnswer,
+            difficulty_level: difficulty,
+            points_value: parseInt(points),
         };
 
         Object.assign(questionToUpdate, updates);
@@ -6444,13 +6552,13 @@
         question_type: 'multiple_choice',
         skill_id: skill,
         city_id: subject,
-        difficulty_level: 'medium',
+        difficulty_level: difficulty || 'medium',
         answer_a: answerA,
         answer_b: answerB,
         answer_c: answerC,
         answer_d: answerD,
         correct_answer: correctAnswer,
-        points_value: 10,
+        points_value: parseInt(points) || 10,
         grade: grade,
         semester: 'semester3',
         subject: subject.replace('_test', ''),
@@ -6485,6 +6593,12 @@
       document.getElementById('newAnswerC').value = '';
       document.getElementById('newAnswerD').value = '';
       document.getElementById('newCorrectAnswer').value = '';
+      
+      const diffEl = document.getElementById('difficultyLevel');
+      if(diffEl) diffEl.value = 'medium';
+      
+      const pointsEl = document.getElementById('pointsValue');
+      if(pointsEl) pointsEl.value = '10';
       
       const preview = document.getElementById('editImagePreview');
       if (preview) preview.remove();

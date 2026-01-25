@@ -5041,7 +5041,12 @@ D) 18
                         'onReady': (event) => {
                             event.target.getIframe().dataset.videoUrl = fullUrl;
                         },
-                        'onError': window.onPlayerError
+                        'onError': window.onPlayerError,
+                        'onStateChange': (event) => {
+                            if (event.data === 0) {
+                                closeVideoModal();
+                            }
+                        }
                     }
                 });
             };
@@ -5513,6 +5518,14 @@ D) 18
     function onPlayerStateChange(event) {
       // 0 = YT.PlayerState.ENDED
       if (event.data === 0) {
+        // إخفاء الفيديو فوراً لمنع ظهور الاقتراحات
+        try {
+            const iframe = event.target.getIframe();
+            if (iframe) {
+                iframe.style.visibility = 'hidden';
+            }
+        } catch(e) {}
+
         const btn = document.getElementById('startBtn');
         if (btn) {
           btn.disabled = false;

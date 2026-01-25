@@ -4513,6 +4513,7 @@ D) 18
         skills_mastered: user.skills_mastered ?? 0,
         current_level: user.current_level ?? 1,
         last_login: new Date().toISOString(),
+        progress_data: user.progress_data ?? {},
         created_at: user.created_at ?? new Date().toISOString()
       };
 
@@ -5423,8 +5424,15 @@ D) 18
             currentUser.stars_collected = (currentUser.stars_collected || 0) + 
               Math.floor(gameState.correctAnswers / gameState.currentQuestions.length * 3);
             
-            currentUser.progress_data = JSON.stringify(gameState);
+            // حفظ التقدم مع استبعاد البيانات الكبيرة (الأسئلة) لتسريع الحفظ
+            const stateToSave = { ...gameState };
+            stateToSave.currentQuestions = [];
+            stateToSave.challengeData = null;
+
+            currentUser.progress_data = JSON.stringify(stateToSave);
             window.dataSdk.update(currentUser);
+            // مزامنة فورية مع السيرفر لضمان حفظ التقدم
+            syncUserSafe(currentUser);
           }
         }
       }

@@ -332,6 +332,11 @@
     <div id="player-modal"></div>
   </div>
 
+  <div id="image-zoom-modal" style="display:none;" class="fixed inset-0 bg-black/95 flex items-center justify-center z-[10001] cursor-zoom-out" onclick="closeImageZoom()">
+    <img id="zoomed-image" src="" class="max-w-[95%] max-h-[95%] object-contain rounded-lg shadow-2xl transition-transform duration-300">
+    <button onclick="closeImageZoom()" class="absolute top-4 right-4 text-white text-4xl font-bold hover:text-gray-300 z-[10002]">&times;</button>
+  </div>
+
   <audio id="warning-sound" preload="auto">
     <source src="data:audio/mp3;base64,//NExAAAAANIAAAAAExBTUUzLjEwMKqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqq" type="audio/mpeg">
   </audio>
@@ -359,10 +364,10 @@
       secondary_action_color: "#8b5cf6",
       font_family: "Cairo",
       font_size: 16,
-      game_title: "عالم نافس",
+      game_title: "رحلة المعرفة",
       game_subtitle: "استكشف عالم التعلم المثير",
       guide_name: "نور",
-      welcome_message: "مرحباً بك يا مستكشف نافس!"
+      welcome_message: "مرحباً بك يا مستكشف المعرفة!"
     };
 
     function processYouTubeUrl(url) {
@@ -2082,7 +2087,7 @@
                 <div class="text-center mb-8">
                   <div style="font-size: ${baseFontSize * 3}px;" class="mb-4">🤔</div>
                   ${currentQ.question_text.startsWith('data:image') ?
-                    `<img src="${currentQ.question_text}" class="max-w-full h-auto rounded-lg mx-auto border-2 border-gray-600" style="max-height: 300px;" alt="سؤال">` :
+                    `<img src="${currentQ.question_text}" onclick="openImageZoom(this.src)" class="max-w-full h-auto rounded-lg mx-auto border-2 border-gray-600 cursor-zoom-in hover:opacity-90 transition-opacity" style="max-height: 300px;" alt="سؤال">` :
                     `<div id="questionDisplay" class="font-bold"></div>`
                   }
                 </div>
@@ -2259,7 +2264,7 @@
                   <h1 style="font-size: ${baseFontSize * 2}px; color: ${textColor};" class="font-bold mb-2">لوحة تحكم المعلم 👨‍🏫</h1>
                   <p style="font-size: ${baseFontSize}px; color: ${textColor};" class="opacity-80">إدارة الأسئلة والمحتوى التعليمي</p>
                 </div>
-                <div class="flex gap-3">
+                <div class="flex flex-wrap gap-3 w-full md:w-auto">
                   <button onclick="goToLearningOutcomes()"
                     style="background-color: ${secondaryColor}; color: ${textColor}; font-size: ${baseFontSize}px;"
                     class="px-4 py-3 rounded-lg font-semibold hover:opacity-80 transition-all">
@@ -2302,25 +2307,27 @@
               
               ${gameState.selectedCity ? `
                 <div style="background-color: ${cardColor};" class="rounded-2xl p-6 mb-6">
-                  <div class="flex items-center justify-between mb-4">
-                    <h3 style="font-size: ${baseFontSize * 1.5}px; color: ${textColor};" class="font-bold">
+                  <div class="flex flex-col md:flex-row items-center justify-between mb-4 gap-4">
+                    <h3 style="font-size: ${baseFontSize * 1.5}px; color: ${textColor};" class="font-bold text-center md:text-right">
                       ➕ إضافة أسئلة - ${Object.values(islands).flatMap(i => i.cities).find(c => c.id === gameState.selectedCity)?.name}
                     </h3>
-                    <button onclick="toggleReadingPassageForm()" id="toggleReadingBtn"
-                      style="background-color: ${secondaryColor}; color: ${textColor}; font-size: ${baseFontSize * 0.875}px;"
-                      class="px-4 py-2 rounded-lg font-semibold hover:opacity-90 transition-all mx-2">
-                      📖 إضافة نص مقروء مع أسئلة
-                    </button>
-                    <button onclick="triggerJsonImport()"
-                      style="background-color: #8b5cf6; color: ${textColor}; font-size: ${baseFontSize * 0.875}px;"
-                      class="px-4 py-2 rounded-lg font-semibold hover:opacity-90 transition-all mx-2">
-                      📂 استيراد JSON
-                    </button>
-                    <button onclick="toggleBulkForm()" id="toggleBulkBtn"
-                      style="background-color: ${primaryColor}; color: ${textColor}; font-size: ${baseFontSize * 0.875}px;"
-                      class="px-4 py-2 rounded-lg font-semibold hover:opacity-90 transition-all">
-                      📋 إضافة متعددة
-                    </button>
+                    <div class="flex flex-wrap justify-center gap-2 w-full md:w-auto">
+                      <button onclick="toggleReadingPassageForm()" id="toggleReadingBtn"
+                        style="background-color: ${secondaryColor}; color: ${textColor}; font-size: ${baseFontSize * 0.875}px;"
+                        class="px-4 py-2 rounded-lg font-semibold hover:opacity-90 transition-all flex-1 md:flex-none whitespace-nowrap">
+                        📖 نص مقروء
+                      </button>
+                      <button onclick="triggerJsonImport()"
+                        style="background-color: #8b5cf6; color: ${textColor}; font-size: ${baseFontSize * 0.875}px;"
+                        class="px-4 py-2 rounded-lg font-semibold hover:opacity-90 transition-all flex-1 md:flex-none whitespace-nowrap">
+                        📂 استيراد
+                      </button>
+                      <button onclick="toggleBulkForm()" id="toggleBulkBtn"
+                        style="background-color: ${primaryColor}; color: ${textColor}; font-size: ${baseFontSize * 0.875}px;"
+                        class="px-4 py-2 rounded-lg font-semibold hover:opacity-90 transition-all flex-1 md:flex-none whitespace-nowrap">
+                        📋 إضافة متعددة
+                      </button>
+                    </div>
                   </div>
                   
                   <input type="file" id="jsonFileInput" accept=".json" style="display: none;" onchange="handleJsonImport(event)">
@@ -2570,8 +2577,8 @@ D) 18
                         const difficultyEmoji = q.difficulty_level === 'easy' ? '🟢' : q.difficulty_level === 'medium' ? '🟡' : '🔴';
                         return `
                           <div style="background-color: ${bgColor};" class="rounded-xl p-4">
-                            <div class="flex items-start justify-between gap-4">
-                              <div class="flex-1">
+                            <div class="flex flex-col md:flex-row items-start justify-between gap-4">
+                              <div class="flex-1 w-full">
                                 ${q.reading_title ? `
                                   <div class="mb-2">
                                     <span style="background-color: ${secondaryColor}; color: ${textColor}; font-size: ${baseFontSize * 0.75}px;" class="px-2 py-1 rounded-md font-bold inline-flex items-center gap-1">
@@ -2589,7 +2596,7 @@ D) 18
                                 <div class="flex items-center gap-2 mb-2">
                                   <span style="font-size: ${baseFontSize}px; color: ${textColor};" class="font-bold">${index + 1}.</span>
                                   ${q.question_text.startsWith('data:image') ? 
-                                    `<img src="${q.question_text}" class="w-24 h-auto rounded-md border border-gray-500" alt="صورة السؤال">` :
+                                    `<img src="${q.question_text}" onclick="openImageZoom(this.src)" class="w-24 h-auto rounded-md border border-gray-500 cursor-zoom-in hover:opacity-80" alt="صورة السؤال">` :
                                     `<span style="font-size: ${baseFontSize}px; color: ${textColor};" class="font-semibold">${q.question_text}</span>`
                                   }
                                 </div>
@@ -2599,16 +2606,18 @@ D) 18
                                   <span style="font-size: ${baseFontSize * 0.875}px; color: ${textColor};" class="opacity-70">✅ ${q.correct_answer}</span>
                                 </div>
                               </div>
-                              <button onclick="editQuestion('${q.__backendId}')"
-                                style="background-color: ${secondaryColor}; color: ${textColor}; font-size: ${baseFontSize * 0.875}px;"
-                                class="px-4 py-2 rounded-lg font-semibold hover:opacity-80 transition-all ml-2">
-                                ✏️ تعديل
-                              </button>
-                              <button onclick="deleteQuestion('${q.__backendId}')"
-                                style="background-color: #ef4444; color: ${textColor}; font-size: ${baseFontSize * 0.875}px;"
-                                class="px-4 py-2 rounded-lg font-semibold hover:opacity-80 transition-all">
-                                🗑️ حذف
-                              </button>
+                              <div class="flex gap-2 w-full md:w-auto justify-end mt-2 md:mt-0">
+                                <button onclick="editQuestion('${q.__backendId}')"
+                                  style="background-color: ${secondaryColor}; color: ${textColor}; font-size: ${baseFontSize * 0.875}px;"
+                                  class="px-4 py-2 rounded-lg font-semibold hover:opacity-80 transition-all flex-1 md:flex-none">
+                                  ✏️ تعديل
+                                </button>
+                                <button onclick="deleteQuestion('${q.__backendId}')"
+                                  style="background-color: #ef4444; color: ${textColor}; font-size: ${baseFontSize * 0.875}px;"
+                                  class="px-4 py-2 rounded-lg font-semibold hover:opacity-80 transition-all flex-1 md:flex-none">
+                                  🗑️ حذف
+                                </button>
+                              </div>
                             </div>
                           </div>
                         `;
@@ -2790,22 +2799,22 @@ D) 18
                 <div class="flex flex-wrap gap-3">
                   <button onclick="clearTable('questions')"
                     style="background-color: #ef4444; color: white; font-size: ${baseFontSize}px;"
-                    class="px-6 py-3 rounded-lg font-bold hover:opacity-90 transition-all">
+                    class="px-6 py-3 rounded-lg font-bold hover:opacity-90 transition-all w-full md:w-auto">
                     🗑️ حذف جميع الأسئلة
                   </button>
                   <button onclick="clearTable('learning_castles')"
                     style="background-color: #ef4444; color: white; font-size: ${baseFontSize}px;"
-                    class="px-6 py-3 rounded-lg font-bold hover:opacity-90 transition-all">
+                    class="px-6 py-3 rounded-lg font-bold hover:opacity-90 transition-all w-full md:w-auto">
                     🗑️ حذف جميع القلاع
                   </button>
                   <button onclick="clearTable('users')"
                     style="background-color: #ef4444; color: white; font-size: ${baseFontSize}px;"
-                    class="px-6 py-3 rounded-lg font-bold hover:opacity-90 transition-all">
+                    class="px-6 py-3 rounded-lg font-bold hover:opacity-90 transition-all w-full md:w-auto">
                     🗑️ حذف المستخدمين (ما عدا الحالي)
                   </button>
                   <button onclick="clearTable('student_questions_history')"
                     style="background-color: #ef4444; color: white; font-size: ${baseFontSize}px;"
-                    class="px-6 py-3 rounded-lg font-bold hover:opacity-90 transition-all">
+                    class="px-6 py-3 rounded-lg font-bold hover:opacity-90 transition-all w-full md:w-auto">
                     🗑️ حذف سجل إجابات الطلاب
                   </button>
                 </div>
@@ -3446,7 +3455,7 @@ D) 18
         const qDisplay = document.getElementById('questionDisplay');
         if (qDisplay && currentQ && currentQ.question_text) {
             if (currentQ.question_text.startsWith('data:image') || currentQ.question_text.includes('supabase.co')) {
-                qDisplay.innerHTML = `<img src="${currentQ.question_text}" class="max-w-full h-auto rounded-lg mx-auto border-2 border-gray-600" style="max-height: 300px;" alt="سؤال">`;
+                qDisplay.innerHTML = `<img src="${currentQ.question_text}" onclick="openImageZoom(this.src)" class="max-w-full h-auto rounded-lg mx-auto border-2 border-gray-600 cursor-zoom-in hover:opacity-90 transition-opacity" style="max-height: 300px;" alt="سؤال">`;
             } else {
                 renderMathQuestion(currentQ.question_text, qDisplay);
             }
@@ -5097,6 +5106,20 @@ D) 18
         player.innerHTML = ''; // إيقاف الفيديو تمامًا
     }
 
+    function openImageZoom(src) {
+      const modal = document.getElementById('image-zoom-modal');
+      const img = document.getElementById('zoomed-image');
+      if (modal && img) {
+        img.src = src;
+        modal.style.display = 'flex';
+      }
+    }
+
+    function closeImageZoom() {
+      const modal = document.getElementById('image-zoom-modal');
+      if (modal) modal.style.display = 'none';
+    }
+
     function editLearningCastle(backendId) {
       const castle = learningCastles.find(c => c.__backendId === backendId);
       if (!castle) return;
@@ -5254,7 +5277,7 @@ D) 18
       }
 
       // حفظ الأسئلة في السجل
-      await supabaseSdk.saveQuestionsToHistory(levelQuestions, level);
+      supabaseSdk.saveQuestionsToHistory(levelQuestions, level); // لا ننتظر الإكمال لتسريع الانتقال
 
       // عرض الأسئلة
       gameState.currentQuestions = levelQuestions;
@@ -5647,16 +5670,23 @@ D) 18
       document.getElementById('cert-date').textContent = new Date().toLocaleDateString('ar-SA');
 
       const element = document.getElementById('certificate-hidden');
+      // نخزن الموضع الأصلي للعنصر
+      const originalLeft = element.style.left;
       
       try {
         showLoader('جاري إصدار الشهادة...');
+        // حل بديل لمكتبة html-to-image:
+        // يتم جلب العنصر مؤقتاً إلى الشاشة ليتمكن من تصويره
+        // سيبقى مخفياً لأنه يمتلك z-index: -1
+        element.style.left = '0px';
+
         const imgData = await htmlToImage.toPng(element, { pixelRatio: 2 });
         
         const { jsPDF } = window.jspdf;
         const pdf = new jsPDF('l', 'mm', 'a4'); // Landscape
         const pdfWidth = pdf.internal.pageSize.getWidth();
         const pdfHeight = pdf.internal.pageSize.getHeight();
-        
+
         pdf.addImage(imgData, 'PNG', 0, 0, pdfWidth, pdfHeight);
         pdf.save(`شهادة_${studentName}.pdf`);
         showToast('تم تحميل الشهادة بنجاح 🎓', 'success');
@@ -5664,6 +5694,8 @@ D) 18
         console.error(err);
         showToast('حدث خطأ أثناء إنشاء الشهادة', 'error');
       } finally {
+        // نعيد العنصر إلى موضعه الأصلي لإخفائه مرة أخرى
+        element.style.left = originalLeft;
         hideLoader();
       }
     }
@@ -5829,6 +5861,8 @@ D) 18
     window.playVideo = playVideo;
     window.openVideoModal = openVideoModal;
     window.closeVideoModal = closeVideoModal;
+    window.openImageZoom = openImageZoom;
+    window.closeImageZoom = closeImageZoom;
     window.checkYouTubeEmbeddable = checkYouTubeEmbeddable;
     window.editLearningCastle = editLearningCastle;
     window.cancelEditCastle = cancelEditCastle;

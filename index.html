@@ -2055,7 +2055,6 @@
               </div>
               
               <div style="background-color: ${cardColor};" class="rounded-2xl p-8 mb-6 slide-in">
-                <div id="question-timer" class="mb-3 font-bold text-yellow-400 text-lg text-center"></div>
                 <div class="flex items-center gap-3 mb-6">
                   ${currentQ.reading_text ? `
                     <div style="background-color: ${primaryColor};" class="px-3 py-1 rounded-full">
@@ -2135,10 +2134,11 @@
       // 9. شاشة النتائج
       else if (currentScreen === 'results') {
         const percentage = (gameState.correctAnswers / gameState.currentQuestions.length * 100).toFixed(0);
-        const stars = percentage >= 90 ? 3 : percentage >= 70 ? 2 : percentage >= 50 ? 1 : 0;
+        // تعديل منطق النجوم: 90% فأكثر (3 نجوم)، 80% فأكثر (نجمتان)، 70% فأكثر (نجمة واحدة)
+        const stars = percentage >= 90 ? 3 : percentage >= 80 ? 2 : percentage >= 70 ? 1 : 0;
         const totalPoints = gameState.currentQuestions.reduce((sum, q) => sum + (q.points_value || 0), 0);
         const earnedPoints = Math.round(totalPoints * (percentage / 100));
-        const isPassed = percentage >= 50;
+        const isPassed = percentage >= 70;
         
         // تشغيل الكونفيتي إذا كانت النتيجة جيدة
         if (isPassed) {
@@ -2156,7 +2156,7 @@
                   ${percentage >= 70 ? 'أحسنت!' : percentage >= 50 ? 'جيد!' : 'حاول مرة أخرى!'}
                 </h2>
                 <p style="font-size: ${baseFontSize * 1.125}px; color: ${textColor};" class="mb-8 opacity-80">
-                  ${percentage >= 70 ? 'لقد أتممت التحدي بنجاح!' : percentage >= 50 ? 'أداء جيد! يمكنك التحسين!' : 'لا تستسلم! حاول مرة أخرى!'}
+                  ${percentage >= 70 ? 'لقد أتممت التحدي بنجاح!' : percentage >= 50 ? 'أداء جيد! لكن تحتاج 70% لتجاوز المستوى' : 'لا تستسلم! حاول مرة أخرى!'}
                 </p>
                 
                 <div class="grid grid-cols-3 gap-4 mb-8">
@@ -2431,26 +2431,12 @@
                           <div style="background-color: ${cardColor};" class="rounded-lg p-3 mb-2">
                             <pre style="font-size: ${baseFontSize * 0.75}px; color: ${textColor};" class="opacity-70 whitespace-pre-wrap">مثال مرن للترقيم:
 
-السؤال 1: ما ناتج 5 + 3 = ؟
+س1: ما ناتج 5 + 3 = ؟
 أ) 6
 ب) 7
 ج) 8
 د) 9
 الإجابة: ج
-
-س2 ما ناتج 10 - 4 = ؟
-أ) 4
-ب) 5
-ج) 6
-د) 7
-الإجابة: ج
-
-3- ما ناتج 7 × 2 = ؟
-A) 12
-B) 14
-C) 16
-D) 18
-الإجابة: B
 
 ✨ الترقيم المدعوم:
 • "السؤال 1:" أو "السؤال:"
@@ -5412,27 +5398,38 @@ D) 18
     function finishLevel() {
       finishQuiz();
       
-      // التحقق من النجاح (50% فأكثر)
+      // التحقق من النجاح (70% فأكثر)
       const percentage = (gameState.correctAnswers / gameState.currentQuestions.length * 100);
-      const isPassed = percentage >= 50;
+      const isPassed = percentage >= 70;
 
       if (isPassed) {
+        // تأكد من أن المصفوفة موجودة لتجنب الأخطاء
+        if (!Array.isArray(gameState.completedSkills)) {
+            gameState.completedSkills = [];
+        }
+
         if (!gameState.completedSkills.includes(gameState.currentUnit)) {
           gameState.completedSkills.push(gameState.currentUnit);
           
           // تحديث بيانات المستخدم
-          if (currentUser && currentUser.user_type === 'student') {
-            currentUser.skills_mastered = (currentUser.skills_mastered || 0) + 1;
-            currentUser.total_points = (currentUser.total_points || 0) + 
-              (gameState.currentQuestions.reduce((sum, q) => sum + (q.points_value || 0), 0) * 
-              (gameState.correctAnswers / gameState.currentQuestions.length));
-            currentUser.stars_collected = (currentUser.stars_collected || 0) + 
-              Math.floor(gameState.correctAnswers / gameState.currentQuestions.length * 3);
+          if (currentUser) {
+            // تحديث النقاط والنجوم للطلاب فقط
+            if (currentUser.user_type === 'student') {
+                currentUser.skills_mastered = (currentUser.skills_mastered || 0) + 1;
+                currentUser.total_points = (currentUser.total_points || 0) + 
+                (gameState.currentQuestions.reduce((sum, q) => sum + (q.points_value || 0), 0) * 
+                (gameState.correctAnswers / gameState.currentQuestions.length));
+                
+                // حساب النجوم للحفظ في قاعدة البيانات بنفس المنطق
+                const starsEarned = percentage >= 90 ? 3 : percentage >= 80 ? 2 : 1;
+                currentUser.stars_collected = (currentUser.stars_collected || 0) + starsEarned;
+            }
             
             // حفظ التقدم مع استبعاد البيانات الكبيرة (الأسئلة) لتسريع الحفظ
             const stateToSave = { ...gameState };
             stateToSave.currentQuestions = [];
             stateToSave.challengeData = null;
+            stateToSave.pendingQuestionsPromise = null;
 
             currentUser.progress_data = JSON.stringify(stateToSave);
             window.dataSdk.update(currentUser);
@@ -5455,18 +5452,6 @@ D) 18
         } else {
           timerDisplay.style.color = window.elementSdk?.config?.text_color || defaultConfig.text_color;
           timerDisplay.classList.remove('pulse-glow');
-        }
-      }
-
-      const qTimer = document.getElementById('question-timer');
-      if (qTimer) {
-        qTimer.textContent = time;
-        if (time <= 10) {
-          qTimer.classList.remove('text-yellow-400');
-          qTimer.classList.add('text-red-500', 'pulse-glow');
-        } else {
-          qTimer.classList.add('text-yellow-400');
-          qTimer.classList.remove('text-red-500', 'pulse-glow');
         }
       }
     }
@@ -5595,13 +5580,6 @@ D) 18
     }
 
     function triggerLastTenSecondsWarning() {
-      const timerEl = document.getElementById("question-timer");
-      if (timerEl) {
-        // تغيير اللون
-        timerEl.style.animation = "blink 1s infinite";
-        timerEl.style.color = "#ef4444"; // أحمر
-      }
-
       // رسالة تنبيه
       showToast("⏰ تبقى 10 ثوانٍ فقط!", "warning");
 

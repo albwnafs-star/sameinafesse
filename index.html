@@ -3522,13 +3522,20 @@ D) 18
     // === دوال المعالجة الأساسية ===
 
     function persistState() {
-      if (currentUser) {
-        localStorage.setItem('rhlat_gamestate', JSON.stringify(gameState));
-        currentUser.progress_data = JSON.stringify(gameState);
-        window.dataSdk.update(currentUser);
-      }
-    }
+        if (currentUser) {
+            // Save the complete state to localStorage for session resumption
+            localStorage.setItem('rhlat_gamestate', JSON.stringify(gameState));
 
+            // For the user object that gets backed up, save a cleaned version
+            const stateForDB = { ...gameState };
+            stateForDB.currentQuestions = []; // Always remove questions before saving to user object
+            stateForDB.challengeData = null;
+            stateForDB.pendingQuestionsPromise = null;
+            currentUser.progress_data = JSON.stringify(stateForDB);
+
+            window.dataSdk.update(currentUser);
+        }
+    }
     async function hashPassword(password) {
       const msgBuffer = new TextEncoder().encode(password);
       const hashBuffer = await crypto.subtle.digest('SHA-256', msgBuffer);
@@ -5487,43 +5494,14 @@ D) 18
       const percentage = (gameState.correctAnswers / gameState.currentQuestions.length * 100);
       const isPassed = percentage >= 70;
 
-      if (isPassed) {
-        // تأكد من أن المصفوفة موجودة لتجنب الأخطاء
-        if (!Array.isArray(gameState.completedSkills)) {
-            gameState.completedSkills = [];
-        }
-
-        if (!gameState.completedSkills.includes(gameState.currentUnit)) {
-          gameState.completedSkills.push(gameState.currentUnit);
-          
-          // تحديث بيانات المستخدم
-          if (currentUser) {
-            // تحديث النقاط والنجوم للطلاب فقط
-            if (currentUser.user_type === 'student') {
-                currentUser.skills_mastered = (currentUser.skills_mastered || 0) + 1;
-                currentUser.total_points = (currentUser.total_points || 0) + 
-                (gameState.currentQuestions.reduce((sum, q) => sum + (q.points_value || 0), 0) * 
-                (gameState.correctAnswers / gameState.currentQuestions.length));
-                
-                // حساب النجوم للحفظ في قاعدة البيانات بنفس المنطق
-                const starsEarned = percentage >= 90 ? 3 : percentage >= 80 ? 2 : 1;
-                currentUser.stars_collected = (currentUser.stars_collected || 0) + starsEarned;
+        if (isPassed && !gameState.completedSkills.includes(gameState.currentUnit)) {
+            gameState.completedSkills.push(gameState.currentUnit);
+            if (currentUser) {
+                syncUserSafe(currentUser);
             }
-            
-            // حفظ التقدم مع استبعاد البيانات الكبيرة (الأسئلة) لتسريع الحفظ
-            const stateToSave = { ...gameState };
-            stateToSave.currentQuestions = [];
-            stateToSave.challengeData = null;
-            stateToSave.pendingQuestionsPromise = null;
-
-            currentUser.progress_data = JSON.stringify(stateToSave);
-            window.dataSdk.update(currentUser);
-            // مزامنة فورية مع السيرفر لضمان حفظ التقدم
-            syncUserSafe(currentUser);
-          }
         }
-      }
-      gameState.currentQuestions = [];
+
+      // The persistState function will now handle saving the cleaned progress_data
       persistState();
       currentScreen = 'results';
       renderCurrentScreen();
@@ -5752,7 +5730,7 @@ D) 18
       document.getElementById('cert-student-name').textContent = studentName;
       document.getElementById('cert-level-name').textContent = `المستوى: ${level}`;
       document.getElementById('cert-percentage').textContent = `%${percentage}`;
-      document.getElementById('cert-correct').textContent = correctAnswers;
+      document.getElementById('cert-correct').textContent = `${correctAnswers} / ${totalQuestions}`;
       document.getElementById('cert-date').textContent = new Date().toLocaleDateString('ar-SA');
 
       const element = document.getElementById('certificate-hidden');

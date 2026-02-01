@@ -1088,6 +1088,8 @@
         if (error) {
             if (error.code === '42501') {
                 console.warn('RLS Error: Please enable INSERT policy for student_questions_history');
+            } else if (error.code === '42P01' || (error.message && error.message.includes('level_reports'))) {
+                console.warn('Database Trigger Error: A trigger is referencing a missing table "level_reports". History not saved.');
             } else {
                 console.error('History recording failed:', error.message);
             }
@@ -1115,7 +1117,11 @@
           .insert(rows);
           
         if (error) {
-            console.error('Error saving questions history:', error);
+            if (error.code === '42P01' || (error.message && error.message.includes('level_reports'))) {
+                console.warn('Database Trigger Error: A trigger is referencing a missing table "level_reports". History not saved.');
+            } else {
+                console.error('Error saving questions history:', error);
+            }
         }
       }
 

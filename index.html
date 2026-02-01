@@ -280,6 +280,7 @@
 <body class="h-full w-full overflow-auto">
   <div id="app" class="h-full w-full"></div>
   <div id="toast-container"></div>
+  <input type="hidden" id="local_backup_data" />
   <div id="global-loader" class="loader-overlay">
     <div class="w-16 h-16 border-4 border-blue-500 border-t-transparent rounded-full animate-spin"></div>
     <div class="text-white font-bold text-xl">جاري التحميل...</div>
@@ -649,7 +650,7 @@
               fetch: (url, options) => {
                 return fetch(url, {
                   ...options,
-                  signal: AbortSignal.timeout(20000) // 20 ثانية
+                  signal: AbortSignal.timeout(60000) // 60 ثانية
                 });
               }
             }
@@ -688,7 +689,7 @@
           }
           if (!silent) showLoader('جاري مزامنة البيانات...');
           // جلب البيانات من جداول Supabase
-          const { data: usersData, error: usersError } = await this.client.from('users').select('*');
+          const { data: usersData, error: usersError } = await this.fetchAll('users').catch(e => ({ error: e }));
           if (usersError) console.error('Users Sync Error:', usersError);
           
           // تحسين: جلب الأسئلة على دفعات لتجنب المشاكل مع الأعداد الكبيرة
@@ -3533,6 +3534,16 @@ D) 18
             stateForDB.pendingQuestionsPromise = null;
             currentUser.progress_data = JSON.stringify(stateForDB);
 
+            // حفظ في الشاشة المخفية (Hidden Input) كنسخة احتياطية
+            const hiddenInput = document.getElementById('local_backup_data');
+            if (hiddenInput) hiddenInput.value = currentUser.progress_data;
+
+            // ضمان وجود المعرف للحفظ المحلي
+            if (!currentUser.__backendId) {
+                const localUser = users.find(u => u.user_id === currentUser.user_id);
+                currentUser.__backendId = localUser ? localUser.__backendId : currentUser.user_id;
+            }
+
             window.dataSdk.update(currentUser);
         }
     }
@@ -3576,7 +3587,18 @@ D) 18
         return;
       }
 
-      currentUser = userData;
+      // دمج البيانات مع النسخة المحلية لضمان وجود __backendId للحفظ المحلي
+      const localUser = users.find(u => u.user_id === userData.user_id);
+      currentUser = { 
+        ...userData, 
+        __backendId: localUser ? localUser.__backendId : (userData.user_id || generateUUID()) 
+      };
+      
+      // تحديث البيانات المحلية فوراً
+      if (!localUser) { users.push(currentUser); }
+      else { Object.assign(localUser, currentUser); }
+      window.dataSdk.saveToStorage();
+
       showToast('تم تسجيل الدخول بنجاح ✅', 'success');
       localStorage.setItem('rhlat_current_user_id', currentUser.user_id);
 
@@ -5494,15 +5516,30 @@ D) 18
       const percentage = (gameState.correctAnswers / gameState.currentQuestions.length * 100);
       const isPassed = percentage >= 70;
 
-        if (isPassed && !gameState.completedSkills.includes(gameState.currentUnit)) {
+      if (isPassed) {
+        // حساب النقاط والنجوم
+        const totalPoints = gameState.currentQuestions.reduce((sum, q) => sum + (q.points_value || 0), 0);
+        const earnedPoints = Math.round(totalPoints * (gameState.correctAnswers / gameState.currentQuestions.length));
+        const stars = percentage >= 90 ? 3 : percentage >= 80 ? 2 : 1;
+
+        if (currentUser && currentUser.user_type === 'student') {
+            currentUser.total_points = (currentUser.total_points || 0) + earnedPoints;
+            currentUser.stars_collected = (currentUser.stars_collected || 0) + stars;
+        }
+
+        if (!gameState.completedSkills.includes(gameState.currentUnit)) {
             gameState.completedSkills.push(gameState.currentUnit);
-            if (currentUser) {
-                syncUserSafe(currentUser);
+            if (currentUser && currentUser.user_type === 'student') {
+                currentUser.skills_mastered = (currentUser.skills_mastered || 0) + 1;
             }
         }
+      }
 
       // The persistState function will now handle saving the cleaned progress_data
       persistState();
+      if (isPassed && currentUser) {
+          syncUserSafe(currentUser);
+      }
       currentScreen = 'results';
       renderCurrentScreen();
     }

@@ -1019,11 +1019,13 @@
           console.warn('RPC failed, falling back to legacy fetch:', rpcError.message);
 
           // --- الطريقة القديمة (احتياطية في حال لم يتم إنشاء دالة SQL) ---
-          const { data: history } = await this.client
+          const { data: history, error: historyError } = await this.client
             .from('student_questions_history')
             .select('question_id')
             .eq('user_id', userId)
             .eq('skill_id', skillId);
+            
+          if (historyError) console.error('History fetch failed:', historyError.message);
             
           const seenIds = history?.map(h => h.question_id) || [];
           
@@ -1047,11 +1049,13 @@
           // 3. إذا لم يتبقَّ أسئلة كافية (أقل من 10) وكان هناك سجل سابق
           if (finalQuestions.length < 10 && seenIds.length > 0) {
             // نمسح السجل لبدء دورة جديدة
-            await this.client
+            const { error: deleteError } = await this.client
               .from('student_questions_history')
               .delete()
               .eq('user_id', userId)
               .eq('skill_id', skillId);
+              
+            if (deleteError) console.error('Failed to reset history:', deleteError.message);
 
             // نكمل العدد المطلوب من الأسئلة التي كانت "مشاهدة" سابقاً (الموجودة بالفعل في allQuestions)
             const needed = 10 - finalQuestions.length;
@@ -1073,13 +1077,21 @@
 
       async recordHistory(questionId, isCorrect, skillId) {
         if (!this.client || !currentUser) return;
-        await this.client.from('student_questions_history').insert({
+        const { error } = await this.client.from('student_questions_history').insert({
           user_id: currentUser.user_id,
           question_id: questionId,
           is_correct: isCorrect,
           skill_id: skillId,
           answered_at: new Date().toISOString()
-        }).select();
+        });
+
+        if (error) {
+            if (error.code === '42501') {
+                console.warn('RLS Error: Please enable INSERT policy for student_questions_history');
+            } else {
+                console.error('History recording failed:', error.message);
+            }
+        }
       }
 
       async saveQuestionsToHistory(questions, skillId) {
@@ -1102,7 +1114,9 @@
           .from('student_questions_history')
           .insert(rows);
           
-        if (error) console.error('Error saving questions history:', error);
+        if (error) {
+            console.error('Error saving questions history:', error);
+        }
       }
 
       async getCastles(selectedGrade, selectedSubject) {

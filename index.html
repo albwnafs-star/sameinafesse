@@ -10,6 +10,7 @@
   <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.6.0/dist/confetti.browser.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/html-to-image/1.11.11/html-to-image.min.js"></script>
+  <script src="https://html2canvas.hertzen.com/dist/html2canvas.min.js"></script>
   <script>
     window.MathJax = {
       loader: {load: ['[tex]/mhchem']},
@@ -498,6 +499,7 @@
       challengeData: null, // لتخزين بيانات التحدي الحالي
       pendingQuestionsPromise: null // لتخزين وعد جلب الأسئلة مسبقاً
     };
+    
 
     const islands = {
       semester1: {
@@ -643,8 +645,8 @@
         if (window.supabase) {
           this.client = window.supabase.createClient(this.supabaseUrl, this.supabaseKey, {
             auth: {
-              autoRefreshToken: false,
-              persistSession: false
+              autoRefreshToken: true,
+              persistSession: true
             },
             global: {
               fetch: (url, options) => {
@@ -1077,19 +1079,28 @@
 
       async recordHistory(questionId, isCorrect, skillId) {
         if (!this.client || !currentUser) return;
+        
+        const grade = gameState.selectedGrade || currentUser.grade;
+        const subjectId = gameState.currentCastle || gameState.selectedCity;
+        const subject = subjectId ? subjectId.replace('_test', '') : null;
+        const skillName = typeof getCastleTitle === 'function' ? getCastleTitle(skillId) : skillId;
+
         const { error } = await this.client.from('student_questions_history').insert({
           user_id: currentUser.user_id,
           question_id: questionId,
           is_correct: isCorrect,
           skill_id: skillId,
-          answered_at: new Date().toISOString()
+          answered_at: new Date().toISOString(),
+          grade: grade,
+          subject: subject,
+          skill: skillName
         });
 
         if (error) {
             if (error.code === '42501') {
                 console.warn('RLS Error: Please enable INSERT policy for student_questions_history');
-            } else if (error.code === '42P01' || (error.message && error.message.includes('level_reports'))) {
-                console.warn('Database Trigger Error: A trigger is referencing a missing table "level_reports". History not saved.');
+            } else if (error.code === '42P01' || error.message?.includes('Not Found')) {
+                console.warn('Table "student_questions_history" missing. History not saved.');
             } else {
                 console.error('History recording failed:', error.message);
             }
@@ -1101,13 +1112,20 @@
 
         // تصفية الأسئلة التي لا تملك UUID صالح (مثل الأسئلة التجريبية "test1")
         const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+        const grade = gameState.selectedGrade || currentUser.grade;
+        const subjectId = gameState.currentCastle || gameState.selectedCity;
+        const subject = subjectId ? subjectId.replace('_test', '') : null;
+        const skillName = typeof getCastleTitle === 'function' ? getCastleTitle(skillId) : skillId;
 
         const rows = questions
           .filter(q => q.question_id && uuidRegex.test(q.question_id))
           .map(q => ({
             user_id: currentUser.user_id,
             question_id: q.question_id,
-            skill_id: skillId
+            skill_id: skillId,
+            grade: grade,
+            subject: subject,
+            skill: skillName
           }));
 
         if (rows.length === 0) return;
@@ -1117,8 +1135,8 @@
           .insert(rows);
           
         if (error) {
-            if (error.code === '42P01' || (error.message && error.message.includes('level_reports'))) {
-                console.warn('Database Trigger Error: A trigger is referencing a missing table "level_reports". History not saved.');
+            if (error.code === '42P01' || error.message?.includes('Not Found')) {
+                console.warn('Table "student_questions_history" missing. History not saved.');
             } else {
                 console.error('Error saving questions history:', error);
             }
@@ -2755,7 +2773,7 @@ D) 18
                 </div>
               </div>
               
-              <div style="background-color: ${cardColor};" class="rounded-2xl p-6 mb-6">
+              <div style="background-color: ${cardColor};" class="rounded-2xl p-6 mb-6 text-center">
                 <h3 style="font-size: ${baseFontSize * 1.5}px; color: ${textColor};" class="font-bold mb-4">🎨 إعدادات المظهر</h3>
                 <div class="grid md:grid-cols-3 gap-4">
                   <div>
@@ -3441,8 +3459,8 @@ D) 18
                       placeholder="وصف ناتج التعلم المستهدف..."></textarea>
                   </div>
                   <div>
-                    <label style="color: ${textColor}; font-size: ${baseFontSize}px;" class="block mb-2 font-semibold">رابط الفيديو (YouTube) *</label>
-                    <input type="url" id="lc_video" required
+                    <label style="color: ${textColor}; font-size: ${baseFontSize}px;" class="block mb-2 font-semibold">رابط الفيديو (YouTube) (اختياري)</label>
+                    <input type="url" id="lc_video"
                       style="background-color: ${bgColor}; color: ${textColor}; font-size: ${baseFontSize}px;"
                       class="w-full px-4 py-3 rounded-lg outline-none"
                       placeholder="https://youtube.com/...">
@@ -3713,7 +3731,8 @@ D) 18
       goToLogin();
     }
 
-    function logout() {
+    async function logout() {
+      if (supabaseSdk.client) await supabaseSdk.client.auth.signOut();
       currentUser = null;
       currentScreen = 'login';
       localStorage.removeItem('rhlat_current_user_id');
@@ -4189,12 +4208,12 @@ D) 18
         const correctAnswer = parseInt(formData.get(`correct_${i}`));
         
         if (question && options.every(opt => opt && opt.trim())) {
-          newQuestions.push({
+          newQuestions.push(cleanQuestionData({
             question_id: generateUUID(),
             user_id: currentUser.user_id,
             question_text: question,
             question_type: 'multiple_choice',
-            skill_id: readingText.reading_id,
+            skill_id: readingText.skill_id || null,
             city_id: 'arabic',
             grade: readingText.grade,
             difficulty_level: 'medium',
@@ -4205,9 +4224,11 @@ D) 18
             correct_answer: ['A', 'B', 'C', 'D'][correctAnswer],
             points_value: 10,
             created_at: new Date().toISOString(),
+            explanation: '',
+            reading_parent_id: readingText.reading_id,
             reading_text: readingText.content,
             reading_title: readingText.title
-          });
+          }));
         }
       }
       
@@ -4338,12 +4359,12 @@ D) 18
         
         const supabaseQuestions = [];
         for (const q of parsedQuestions) {
-          const newQuestion = {
+          const newQuestion = cleanQuestionData({
             question_id: generateUUID(),
             user_id: currentUser.user_id,
             question_text: q.text,
             question_type: 'multiple_choice',
-            skill_id: unitId,
+            skill_id: unitId || null,
             city_id: currentCity,
             difficulty_level: q.difficulty || 'medium',
             answer_a: q.options.a,
@@ -4361,7 +4382,7 @@ D) 18
             reading_text: readingTextContent,
             reading_title: readingTextTitle,
             reading_parent_id: readingParentId
-          };
+          });
           
           await window.dataSdk.create(newQuestion);
           
@@ -4760,6 +4781,17 @@ D) 18
       };
     }
 
+    function cleanQuestionData(q) {
+      const cleaned = { ...q };
+      if (!cleaned.skill_id) cleaned.skill_id = null;
+      if (!cleaned.reading_parent_id) cleaned.reading_parent_id = null;
+      cleaned.points_value = parseInt(cleaned.points_value) || 0;
+      cleaned.explanation = cleaned.explanation || '';
+      cleaned.reading_text = cleaned.reading_text || null;
+      cleaned.reading_title = cleaned.reading_title || null;
+      return cleaned;
+    }
+
     async function saveReadingPassageWithQuestions(event) {
       event.preventDefault();
       const btn = document.getElementById('saveReadingPassageBtn');
@@ -4803,12 +4835,12 @@ D) 18
         const points = item.querySelector('input[name^="pq_points_"]').value;
 
         if (text && optA && optB && optC && optD && correct) {
-          newQuestions.push({
+          newQuestions.push(cleanQuestionData({
             question_id: generateUUID(),
             user_id: currentUser.user_id,
             question_text: text,
             question_type: 'multiple_choice',
-            skill_id: unitId,
+            skill_id: unitId || null,
             city_id: currentCity,
             difficulty_level: 'medium',
             answer_a: optA,
@@ -4822,10 +4854,12 @@ D) 18
             subject: currentSubject,
             created_by: currentUser.username,
             created_at: new Date().toISOString(),
+            explanation: '',
+            reading_parent_id: readingId,
             // الحقول الجديدة للنص المقروء
             reading_text: content || null,
             reading_title: title || null
-          });
+          }));
         }
       });
 
@@ -4837,13 +4871,13 @@ D) 18
       }
 
       // إضافة سجل النص المقروء كعنصر مستقل
-      newQuestions.push({
+      newQuestions.push(cleanQuestionData({
         question_id: readingId,
         user_id: currentUser.user_id,
         question_type: 'reading',
         reading_title: title,
         reading_text: content,
-        skill_id: unitId,
+        skill_id: unitId || null,
         city_id: currentCity,
         grade: currentGrade,
         semester: currentSemester,
@@ -4851,8 +4885,10 @@ D) 18
         created_by: currentUser.username,
         created_at: new Date().toISOString(),
         question_text: title,
-        points_value: 0
-      });
+        points_value: 0,
+        explanation: '',
+        reading_parent_id: null
+      }));
 
       // حفظ الأسئلة
       for (const q of newQuestions) {
@@ -4901,13 +4937,15 @@ D) 18
       const selectedSubject = document.getElementById('lc_subject').value;
       const castleTitle = document.getElementById('lc_title').value;
       const learningOutcome = document.getElementById('lc_outcome').value;
-      const videoUrl = document.getElementById('lc_video').value;
+      const videoUrl = document.getElementById('lc_video').value.trim();
       const currentTeacherId = currentUser.user_id;
       
-      const videoInfo = processYouTubeUrl(videoUrl);
-      if (!videoInfo.videoId) {
-        showToast('رابط الفيديو غير صالح', 'error');
-        return;
+      if (videoUrl) {
+        const videoInfo = processYouTubeUrl(videoUrl);
+        if (!videoInfo.videoId) {
+          showToast('رابط الفيديو غير صالح', 'error');
+          return;
+        }
       }
       
       // حساب الترتيب بشكل آمن
@@ -4915,8 +4953,8 @@ D) 18
         ? Math.max(...learningCastles.map(c => c.order_index || 0)) + 1 
         : 1;
 
-      if (!selectedGrade || !selectedSubject || !castleTitle || !learningOutcome || !videoUrl) {
-        showToast('الرجاء تعبئة جميع الحقول', 'error');
+      if (!selectedGrade || !selectedSubject || !castleTitle || !learningOutcome) {
+        showToast('الرجاء تعبئة جميع الحقول الإلزامية', 'error');
         return;
       }
 
@@ -4980,7 +5018,7 @@ D) 18
         } else {
             console.error(error);
             if (error.code === '42501') {
-                showToast("خطأ صلاحيات (RLS): يرجى إضافة سياسات الأمان في قاعدة البيانات", "error");
+                showToast("خطأ صلاحيات: يرجى تسجيل الخروج والدخول مرة أخرى لتحديث الجلسة", "error");
             } else {
                 showToast("تم الحفظ محلياً (سيتم الرفع تلقائياً)", "warning");
             }
@@ -5253,7 +5291,7 @@ D) 18
       document.getElementById('lc_subject').value = castle.subject;
       document.getElementById('lc_title').value = castle.title;
       document.getElementById('lc_outcome').value = castle.learning_outcome;
-      document.getElementById('lc_video').value = castle.video_url;
+      document.getElementById('lc_video').value = castle.video_url || '';
 
       document.getElementById('formTitle').textContent = '✏️ تعديل القلعة';
       const submitBtn = document.querySelector('#admin_learning_outcomes_form button[type="submit"]');
@@ -6550,11 +6588,11 @@ D) 18
             return;
         }
 
-        const updates = {
+        const updates = cleanQuestionData({
             question_text: imageUrl,
             grade: grade,
             city_id: subject,
-            skill_id: skill,
+            skill_id: skill || null,
             answer_a: answerA,
             answer_b: answerB,
             answer_c: answerC,
@@ -6562,7 +6600,7 @@ D) 18
             correct_answer: correctAnswer,
             difficulty_level: difficulty,
             points_value: parseInt(points),
-        };
+        });
 
         Object.assign(questionToUpdate, updates);
         await window.dataSdk.update(questionToUpdate);
@@ -6580,12 +6618,12 @@ D) 18
         return;
       }
 
-      const newQuestion = {
+      const newQuestion = cleanQuestionData({
         question_id: generateUUID(),
         user_id: currentUser.user_id,
         question_text: imageUrl,
         question_type: 'multiple_choice',
-        skill_id: skill,
+        skill_id: skill || null,
         city_id: subject,
         difficulty_level: difficulty || 'medium',
         answer_a: answerA,
@@ -6598,8 +6636,12 @@ D) 18
         semester: 'semester3',
         subject: subject.replace('_test', ''),
         created_by: currentUser.username,
-        created_at: new Date().toISOString()
-      };
+        created_at: new Date().toISOString(),
+        explanation: '',
+        reading_text: null,
+        reading_title: null,
+        reading_parent_id: null
+      });
 
       const { error } = await supabaseSdk.client.from('questions').insert(newQuestion);
 
